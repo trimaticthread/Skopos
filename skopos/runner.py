@@ -7,7 +7,7 @@ import os
 import pkgutil
 import re
 
-from . import utils
+from . import utils, report
 from .module_base import REGISTRY
 
 # Modüllerin çalıştırılacağı kanonik sıra (bağımlılık zinciri).
@@ -104,5 +104,46 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
     with open(summary_path, "w", encoding="utf-8") as fh:
         json.dump(summary, fh, indent=2, ensure_ascii=False)
 
-    utils.good(f"Özet yazıldı: {summary_path}")
+    # HTML rapor üret
+    report_path = None
+    try:
+        report_path = report.write_html(summary, run_dir)
+    except Exception as exc:
+        utils.warn(f"HTML rapor üretilemedi: {exc}")
+
+    _print_summary(summary, summary_path, report_path)
     return summary
+
+
+def _print_summary(summary, summary_path, report_path):
+    """Tarama sonunda terminale okunur bir özet basar."""
+    utils.banner("Tarama özeti")
+
+    ops = summary.get("open_ports", [])
+    if ops:
+        utils.good(f"Açık portlar ({len(ops)}):")
+        for op in ops:
+            extra = f" — {op['product']}" if op.get("product") else ""
+            print(f"      {op['port']}/{op['proto']}  {op['service']}{extra}")
+    else:
+        utils.info("Açık port bulunamadı.")
+
+    if summary.get("web_targets"):
+        utils.good("Web hedefleri: " + ", ".join(summary["web_targets"]))
+    if summary.get("subdomains"):
+        utils.good(f"Subdomain: {len(summary['subdomains'])} adet")
+
+    # Modül durumları tek satırda
+    parts = []
+    for name, info in summary.get("modules", {}).items():
+        st = info.get("status", "?")
+        mark = {"done": "✓", "error": "✗"}.get(st, "•" if st.startswith("skipped") else "·")
+        parts.append(f"{mark} {name}")
+    if parts:
+        utils.info("Modüller: " + "   ".join(parts))
+
+    print()
+    utils.good(f"JSON özet : {summary_path}")
+    if report_path:
+        utils.good(f"HTML rapor: {report_path}")
+        utils.info(f"Tarayıcıda aç: xdg-open {report_path}")
