@@ -1,0 +1,2 @@
+# Tüm metin dosyalarını LF ile normalize et (araç Linux'ta çalışır)
+* text=auto eol=lf

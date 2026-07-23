@@ -1,0 +1,134 @@
+# ============================================================
+#  recon-tool varsayılan yapılandırması
+#  Bu dosyayı kopyalayıp -c ile kendi config'ini verebilirsin.
+#  CLI flag'leri buradaki değerleri override eder.
+# ============================================================
+
+general:
+  output_dir: output          # Sonuçların yazılacağı ana klasör
+  default_profile: normal     # Flag verilmezse kullanılacak profil
+
+# ------------------------------------------------------------
+#  Agresiflik profilleri
+#  Her modül, kendi ihtiyacı olan düğmeleri buradan okur.
+#  Yeni modül eklersen, buraya kendi bloğunu eklemen yeterli.
+# ------------------------------------------------------------
+profiles:
+
+  stealth:                    # Yavaş, düşük gürültü, IDS/IPS dostu
+    nmap:
+      timing: 2               # nmap -T2
+      top_ports: 100          # sadece en yaygın 100 port
+      full_scan: false        # true olursa -p- (tüm portlar)
+      scripts: []             # NSE script kategorileri
+      version_intensity: 2
+      extra_flags: []
+    fuzzing:
+      threads: 10
+      rate: 50                # saniyedeki istek limiti (0 = limitsiz)
+      wordlist: small
+      extensions: []          # ör. [php, html, txt]
+    subdomain:
+      threads: 10
+      passive_only: true      # sadece pasif kaynaklar (gürültüsüz)
+    web:
+      run_nikto: false        # stealth'te nikto çok gürültülü -> kapalı
+      run_whatweb: true
+    bloodhound:
+      collection: DCOnly      # sadece DC'ye sor -> en az gürültü
+
+  normal:                     # Dengeli varsayılan
+    nmap:
+      timing: 3
+      top_ports: 1000
+      full_scan: false
+      scripts: [default]
+      version_intensity: 5
+      extra_flags: []
+    fuzzing:
+      threads: 40
+      rate: 0
+      wordlist: medium
+      extensions: [php, html, txt]
+    subdomain:
+      threads: 30
+      passive_only: true
+    web:
+      run_nikto: true
+      run_whatweb: true
+    bloodhound:
+      collection: Default     # standart toplama (grup/oturum/ACL vb.)
+
+  aggressive:                 # Hızlı ve kapsamlı, gürültü umursanmaz
+    nmap:
+      timing: 4
+      top_ports: 0            # 0 -> top_ports kapalı
+      full_scan: true         # -p- tüm portlar
+      scripts: [default, vuln]
+      version_intensity: 9
+      extra_flags: ["-A"]     # OS + traceroute + script + version
+    fuzzing:
+      threads: 100
+      rate: 0
+      wordlist: large
+      extensions: [php, html, txt, bak, old, zip]
+    subdomain:
+      threads: 100
+      passive_only: false     # aktif brute-force de dahil
+    web:
+      run_nikto: true
+      run_whatweb: true
+    bloodhound:
+      collection: All         # tüm toplama yöntemleri (en kapsamlı/gürültülü)
+
+# ------------------------------------------------------------
+#  Wordlist yolları (Linux/Kali varsayılanları)
+#  Kendi sistemine göre düzenle. seclists kuruluysa büyükleri kullan.
+# ------------------------------------------------------------
+wordlists:
+  dir:
+    small:  /usr/share/wordlists/dirb/small.txt
+    medium: /usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt
+    large:  /usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-big.txt
+  subdomain:
+    small:  /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
+    medium: /usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
+    large:  /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt
+
+# ------------------------------------------------------------
+#  İndirme kaynakları (sistemde wordlist yoksa buradan çekilir)
+#  --setup ya da --auto-fetch ile devreye girer. Sadece https.
+#  Kaynak: SecLists (github.com/danielmiessler/SecLists)
+# ------------------------------------------------------------
+wordlist_sources:
+  dir:
+    small:  https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt
+    medium: https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt
+    large:  https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-big.txt
+  subdomain:
+    small:  https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt
+    medium: https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-20000.txt
+    large:  https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-110000.txt
+
+# ------------------------------------------------------------
+#  Modül bazlı sabit ayarlar (binary isimleri vb.)
+# ------------------------------------------------------------
+modules:
+  nmap:
+    binary: nmap
+  fuzzing:
+    tool: ffuf                # ffuf | gobuster
+    ffuf_binary: ffuf
+    gobuster_binary: gobuster
+  subdomain:
+    binary: subfinder         # subfinder | amass
+  web:
+    whatweb_binary: whatweb
+    nikto_binary: nikto
+  bloodhound:
+    binary: bloodhound-python
+    domain: ""          # boşsa hedeften türetilir (hedef domain ise)
+    username: ""        # AD kullanıcı adı — ya da BH_USER ortam değişkeni
+    dc_ip: ""           # Domain Controller IP (nameserver / -ns)
+    # PAROLA: config'e YAZMA. BH_PASSWORD ortam değişkeninden okunur.
+    # Alternatif: pass-the-hash için -x 'bloodhound=-hashes LM:NT' kullan.

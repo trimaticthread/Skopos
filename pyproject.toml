@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skopos"
+version = "0.1.0"
+description = "Modüler, profil bazlı pentest/recon orkestratörü"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = ["PyYAML>=6.0"]
+
+[project.urls]
+Homepage = "https://github.com/trimaticthread/Skopos"
+
+# `pip install -e .` sonrası doğrudan `skopos` komutu kullanılabilir hale gelir
+[project.scripts]
+skopos = "skopos.cli:main"
+
+[tool.setuptools]
+packages = ["skopos", "skopos.modules"]
