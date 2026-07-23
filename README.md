@@ -196,14 +196,25 @@ output/<target>/<timestamp>/
 - [ ] Scope guard (refuse out-of-scope targets)
 - [ ] More modules: `nuclei`, `crackmapexec`, `enum4linux`
 
-## ⚖️ Legal & ethical use
+## ⚖️ Disclaimer & legal use
 
-Skopos is built for **authorized** security work only — your own lab, engagements
-with written permission, CTFs, and bug bounty programs within scope. Scanning
-systems you don't own or have explicit permission to test is illegal in most
-jurisdictions. The `bloodhound` module requires valid Active Directory
-credentials and is intended for authorized AD assessments. **You are responsible
-for how you use this tool.**
+Skopos is provided strictly for **authorized security testing and educational
+purposes**.
+
+- Use it **only** against systems you **own** or have **explicit, written
+  permission** to test — your own lab, contracted engagements, CTFs, or bug
+  bounty programs within their defined scope.
+- Running these scans against systems without authorization is **illegal** in
+  most jurisdictions and may carry criminal penalties.
+- The `bloodhound` module requires valid Active Directory credentials and is
+  intended for authorized AD assessments only.
+
+> **The author assumes no responsibility or liability for any misuse, damage, or
+> illegal activity carried out with this tool — including use by third parties
+> into whose hands it may fall.** Skopos is distributed "as is", without warranty
+> of any kind (see [LICENSE](LICENSE)). By downloading or using it you accept
+> full responsibility for your own actions and agree to comply with all
+> applicable laws. If you do not agree, do not use this software.
 
 ## 📜 License
 
