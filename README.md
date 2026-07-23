@@ -54,8 +54,12 @@ python -m skopos -t 10.10.10.5 -p aggressive
 # 1. Clone
 git clone https://github.com/trimaticthread/Skopos.git && cd Skopos
 
-# 2. Install the Python dependency (just PyYAML)
-python3 -m pip install -r requirements.txt
+# 2. Install the only dependency (PyYAML).
+#    On Kali/Debian the environment is externally managed (PEP 668),
+#    so use the system package:
+sudo apt install -y python3-yaml
+#    …or, on any other system / to keep things isolated, a virtualenv:
+#    python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 
 # 3. Check your environment: what's installed, what's missing, fetch wordlists
 python3 -m skopos --setup
@@ -64,10 +68,11 @@ python3 -m skopos --setup
 python3 -m skopos -t scanme.nmap.org -m nmap -p normal
 ```
 
-Prefer a real command instead of `python -m skopos`? Install it:
+Prefer a real `skopos` command instead of `python -m skopos`? Install it with
+[pipx](https://pipx.pypa.io/) (works cleanly on externally-managed Kali):
 
 ```bash
-pip install -e .   # now just run:  skopos -t <target> ...
+pipx install -e .   # now just run:  skopos -t <target> ...
 ```
 
 ## 🎚️ Profiles
