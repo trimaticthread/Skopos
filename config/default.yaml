@@ -39,7 +39,7 @@ profiles:
 
   normal:                     # Dengeli varsayılan
     nmap:
-      timing: 3
+      timing: 4               # -T4: filtreli portlarda timeout'ları kısaltır
       top_ports: 1000
       full_scan: false
       scripts: [default]
