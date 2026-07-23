@@ -30,11 +30,16 @@ class FuzzingModule(BaseModule):
     def _wordlist(self):
         size = self.pcfg.get("wordlist", "medium")
         # Sistem yolu yoksa yerel önbelleğe bakar, gerekirse indirir (--auto-fetch)
-        return resources.resolve_wordlist(
+        path = resources.resolve_wordlist(
             self.cfg, "dir", size,
             auto_fetch=self.ctx.get("auto_fetch", False),
             confirm=self.ctx.get("fetch_confirm", True),
         )
+        # Rapor için kullanılan wordlist'i kaydet
+        if path:
+            self.ctx.setdefault("wordlists", []).append(
+                {"module": self.name, "size": size, "path": path})
+        return path
 
     def build_commands(self):
         settings = self.module_settings()

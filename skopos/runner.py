@@ -37,7 +37,7 @@ def _ordered(selected):
 
 
 def run_scan(target, module_names, profile_cfg, cfg, output_root,
-             auto_fetch=False, fetch_confirm=True):
+             auto_fetch=False, fetch_confirm=True, profile_name=None):
     """Tek bir hedef için seçili modülleri çalıştırır."""
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = os.path.join(output_root, _sanitize(target), ts)
@@ -45,8 +45,8 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
 
     ctx = {"run_dir": run_dir, "target": target,
            "auto_fetch": auto_fetch, "fetch_confirm": fetch_confirm}
-    summary = {"target": target, "profile_settings": profile_cfg,
-               "started": ts, "modules": {}}
+    summary = {"target": target, "profile": profile_name,
+               "profile_settings": profile_cfg, "started": ts, "modules": {}}
 
     utils.banner(f"HEDEF: {target}   (çıktı: {run_dir})")
 
@@ -96,7 +96,7 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
         }
 
     # ctx'te biriken keşif verilerini özete ekle
-    for key in ("open_ports", "web_targets", "subdomains"):
+    for key in ("open_ports", "web_targets", "subdomains", "wordlists"):
         if ctx.get(key):
             summary[key] = ctx[key]
 

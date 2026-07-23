@@ -27,6 +27,8 @@ th,td { text-align:left; padding:10px 8px; border-bottom:1px solid #21262d; font
 th { color:#8b949e; font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
 tr:last-child td { border-bottom:none; }
 td.port { font-family:ui-monospace,Menlo,Consolas,monospace; color:#58a6ff; }
+code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px;
+       color:#79c0ff; word-break:break-all; }
 .muted { color:#6e7681; }
 ul.links { list-style:none; padding:0; margin:0; }
 ul.links li { padding:8px 0; border-bottom:1px solid #21262d; }
@@ -65,9 +67,11 @@ def write_html(summary, run_dir):
     """summary sözlüğü + run_dir'deki .log dosyalarından report.html üretir."""
     target = summary.get("target", "")
     started = summary.get("started", "")
+    profile = summary.get("profile") or "—"
     open_ports = summary.get("open_ports", [])
     web_targets = summary.get("web_targets", [])
     subdomains = summary.get("subdomains", [])
+    wordlists = summary.get("wordlists", [])
     modules = summary.get("modules", {})
 
     # Açık portlar tablosu
@@ -106,6 +110,36 @@ def write_html(summary, run_dir):
         f"<tbody>{mod_rows}</tbody></table>"
     )
 
+    # Çalıştırılan komutlar (hangi araç, hangi flag'ler, hangi wordlist)
+    cmd_rows = ""
+    for name, info in modules.items():
+        for cmd in info.get("commands", []):
+            cmd_rows += (f"<tr><td class='muted'>{_esc(name)}</td>"
+                         f"<td><code>{_esc(cmd)}</code></td></tr>")
+    if cmd_rows:
+        commands_section = (
+            "<h2>Commands executed</h2><div class='card'><table>"
+            "<thead><tr><th>Module</th><th>Command</th></tr></thead>"
+            f"<tbody>{cmd_rows}</tbody></table></div>"
+        )
+    else:
+        commands_section = ""
+
+    # Kullanılan wordlist'ler
+    wl_section = ""
+    if wordlists:
+        wl_rows = "".join(
+            f"<tr><td class='muted'>{_esc(w.get('module'))}</td>"
+            f"<td>{_esc(w.get('size'))}</td>"
+            f"<td><code>{_esc(w.get('path'))}</code></td></tr>"
+            for w in wordlists
+        )
+        wl_section = (
+            "<h2>Wordlists used</h2><div class='card'><table>"
+            "<thead><tr><th>Module</th><th>Size</th><th>Path</th></tr></thead>"
+            f"<tbody>{wl_rows}</tbody></table></div>"
+        )
+
     # Subdomain (varsa)
     subs_section = ""
     if subdomains:
@@ -139,6 +173,7 @@ def write_html(summary, run_dir):
   <div class="sub">Reconnaissance results for <b>{_esc(target)}</b></div>
   <div class="meta">
     <span class="pill">target <b>{_esc(target)}</b></span>
+    <span class="pill">profile <b>{_esc(profile)}</b></span>
     <span class="pill">started <b>{_esc(started)}</b></span>
     <span class="pill">open ports <b>{len(open_ports)}</b></span>
     <span class="pill">modules <b>{len(modules)}</b></span>
@@ -155,6 +190,10 @@ def write_html(summary, run_dir):
 
 <h2>Modules</h2>
 <div class="card">{modules_html}</div>
+
+{commands_section}
+
+{wl_section}
 
 <h2>Raw output</h2>
 {logs_html}

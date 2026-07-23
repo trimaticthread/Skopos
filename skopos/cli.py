@@ -156,7 +156,8 @@ def main(argv=None):
     for target in targets:
         try:
             run_scan(target, module_names, profile_cfg, cfg, output_root,
-                     auto_fetch=args.auto_fetch, fetch_confirm=not args.yes)
+                     auto_fetch=args.auto_fetch, fetch_confirm=not args.yes,
+                     profile_name=profile_name)
         except KeyboardInterrupt:
             utils.warn("Tarama kullanıcı tarafından durduruldu.")
             return 130
