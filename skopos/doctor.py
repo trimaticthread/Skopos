@@ -15,19 +15,33 @@ _INSTALL_HINTS = {
     "gobuster": "sudo apt install -y gobuster",
     "nikto": "sudo apt install -y nikto",
     "whatweb": "sudo apt install -y whatweb",
-    "subfinder": "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
+    "subfinder": "sudo apt install -y subfinder   # ya da: go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
     "bloodhound-python": "pipx install bloodhound   # ya da: pip install bloodhound",
 }
 
 
-def check_tools():
-    """Tüm kayıtlı modüllerin gereksinim duyduğu araçları kontrol eder."""
+def check_tools(cfg):
+    """Tüm kayıtlı modüllerin gerçekten ihtiyaç duyduğu araçları kontrol eder."""
     utils.banner("Araç kontrolü")
 
-    # Modüllerin statik 'requires' listelerinden benzersiz araç kümesi
+    # Modülleri varsayılan profille örnekleyip runtime_requires()'ı sor.
+    # (fuzzing/web gibi modüller gerçek ihtiyacını burada bildirir; statik
+    #  'requires' onlarda boş olduğundan tek başına yanıltıcı olurdu.)
+    from .config import resolve_profile
+    profile_name = cfg.get("general", {}).get("default_profile", "normal")
+    try:
+        pcfg = resolve_profile(cfg, profile_name)
+    except ValueError:
+        pcfg = {}
+
     needed = {}
     for name, cls in REGISTRY.items():
-        for binary in cls.requires:
+        try:
+            module = cls("setup-check", pcfg.get(name, {}), cfg, {})
+            binaries = module.runtime_requires()
+        except Exception:
+            binaries = list(cls.requires)
+        for binary in binaries:
             needed.setdefault(binary, []).append(name)
 
     missing = []
@@ -69,7 +83,7 @@ def fetch_wordlists(cfg, confirm=True):
 
 def run(cfg, fetch=True, confirm=True):
     """--setup akışı: araç kontrolü + wordlist indirme."""
-    missing = check_tools()
+    missing = check_tools(cfg)
     if fetch:
         fetch_wordlists(cfg, confirm=confirm)
     utils.banner("Kurulum kontrolü tamamlandı")
