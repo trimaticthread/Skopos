@@ -136,6 +136,40 @@ python3 -m skopos -tL targets.txt -p normal --auto-fetch -y
 [+] Summary written: output/scanme.nmap.org/20260723_2148/summary.json
 ```
 
+## 🧙 Interactive mode — build a scan by picking parameters
+
+Don't remember every flag? Run the wizard. Skopos shows each tool's parameters
+grouped by intent, each with a plain-language explanation and **context tags**
+(`[CTF]`, `[kırmızı takım]`, `[root]`, `[sessiz]`, `[yavaş]`) so you learn *when*
+to use them. You pick numbers, it asks for any values, then runs the scan.
+
+```bash
+python3 -m skopos -t 10.10.11.5 -m nmap -i
+```
+
+```
+▸ Tarama Tipi
+   1) -sS   SYN taraması — hızlı, yarı-açık, görece sessiz     [root] [sessiz]
+   ...
+▸ Port Kapsamı
+   5) -p-           Tüm 65535 portu tara — HTB'de standart     [CTF] [yavaş]
+   6) --top-ports   En yaygın N port (değer sorulacak)         [hızlı]
+▸ Firewall/IDS Atlatma
+  19) -Pn           Host'u online say, keşif atla              [kırmızı takım]
+
+  Seç (ör. 1,4,7-9): 1,6,9,10,15,19
+    → --top-ports için Kaç port? 1000
+```
+
+Selection accepts commas, spaces and ranges (`1,4,7-9`). At the end you can
+**name the scan** — results are stored under that name
+(`output/<name>/<target>/...`) and, if you choose, the exact selection is saved
+as a reusable profile:
+
+```bash
+python3 -m skopos -t 10.10.11.9 -p htb-quick    # replays your saved selection
+```
+
 ## 🔌 Adding a new tool (the whole point)
 
 Want `crackmapexec`, `nuclei`, `amass` or `sqlmap`? Drop one file in

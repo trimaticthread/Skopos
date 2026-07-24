@@ -1,6 +1,6 @@
 """Dizin/dosya fuzzing modülü (ffuf veya gobuster)."""
 
-from ..module_base import BaseModule, Command, register
+from ..module_base import BaseModule, Command, param, register
 from .. import utils, resources
 
 
@@ -19,6 +19,59 @@ class FuzzingModule(BaseModule):
     name = "fuzzing"
     description = "Web dizin/dosya keşfi (ffuf/gobuster)"
     requires = []  # tool seçime bağlı; run sırasında kontrol edilir
+
+    # İnteraktif katalog ffuf odaklı (varsayılan tool). Temel komut (-u/-w)
+    # otomatik kurulur; buradakiler filtre/ayar seçenekleridir.
+    PARAMETERS = [
+        # --- Filtreler (en kritik: çöp sonucu ele) ---
+        param("-fc", "Kod ile filtrele", "Bu HTTP kodlarını gizle (ör. 404 çöpünü at).",
+              "Filtreler", ["kritik"],
+              value={"prompt": "kodlar (ör. 404,403):", "required": True}),
+        param("-fs", "Boyut ile filtrele", "Bu byte boyutundaki cevapları gizle (varsayılan sayfayı at).",
+              "Filtreler", ["kritik"],
+              value={"prompt": "boyut(lar) (ör. 4242):", "required": True}),
+        param("-fw", "Kelime ile filtrele", "Bu kelime sayısındaki cevapları gizle.",
+              "Filtreler", [],
+              value={"prompt": "kelime sayısı (ör. 12):", "required": True}),
+        param("-mc", "Kod ile eşleştir", "Sadece bu HTTP kodlarını göster.",
+              "Filtreler", [],
+              value={"prompt": "kodlar (ör. 200,301,302):", "required": True}),
+        param("-ac", "Otomatik kalibrasyon", "Varsayılan/çöp cevabı otomatik öğrenip filtreler.",
+              "Filtreler", ["kolay"]),
+        # --- Kapsam ---
+        param("-recursion", "Özyineleme", "Bulunan dizinlerin içine de girip tarar.",
+              "Kapsam", []),
+        param("-recursion-depth", "Özyineleme derinliği", "Kaç seviye derine insin.",
+              "Kapsam", [],
+              value={"prompt": "derinlik (ör. 2):", "required": True}),
+        param("-e", "Uzantılar", "Her kelimeyi bu uzantılarla dene.",
+              "Kapsam", [],
+              value={"prompt": "uzantılar (ör. .php,.html,.bak):", "required": True}),
+        # --- İstek ---
+        param("-X", "HTTP metodu", "GET yerine POST/PUT vb. kullan.",
+              "İstek", [],
+              value={"prompt": "metod (ör. POST):", "required": True}),
+        param("-H", "Header ekle", "Özel HTTP header (auth/cookie testi).",
+              "İstek", [],
+              value={"prompt": "header (ör. 'Authorization: Bearer xxx'):", "required": True}),
+        param("-t", "Thread sayısı", "Eşzamanlı istek sayısı (hız).",
+              "İstek", [],
+              value={"prompt": "thread (ör. 40):", "required": True}),
+        param("-rate", "Hız limiti", "Saniyede en fazla N istek (sessizlik/rate-limit).",
+              "İstek", ["sessiz"],
+              value={"prompt": "istek/sn (ör. 50):", "required": True}),
+    ]
+
+    def interactive_command(self, selected_args):
+        s = self.module_settings()
+        binary = s.get("ffuf_binary", "ffuf")
+        wordlist = self._wordlist()
+        commands = []
+        for i, url in enumerate(_web_targets(self.target, self.ctx)):
+            argv = [binary, "-u", f"{url.rstrip('/')}/FUZZ", "-w", wordlist, "-c"]
+            argv += list(selected_args)
+            commands.append(Command(label=f"dirscan{i}", argv=argv))
+        return commands
 
     def runtime_requires(self):
         s = self.module_settings()

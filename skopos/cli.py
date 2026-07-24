@@ -44,6 +44,9 @@ def _parse_args(argv):
                         help="Bir modüle ham ekstra parametre geçir (kaçış kapısı). "
                              "Tekrarlanabilir. Ör: -x 'nmap=-sU --top-ports 50' "
                              "-x 'fuzzing=-recursion -mc 200,301'")
+    parser.add_argument("-i", "--interactive", action="store_true",
+                        help="İnteraktif sihirbaz: parametreleri menüden seç, "
+                             "değerleri gir, taramayı başlat (isteğe bağlı kaydet)")
     parser.add_argument("--setup", action="store_true",
                         help="Ortam kontrolü: eksik araçları raporla + wordlist indir")
     parser.add_argument("--auto-fetch", action="store_true",
@@ -116,48 +119,81 @@ def main(argv=None):
         utils.err("Hedef belirtilmedi. -t ya da -tL kullan. (yardım: -h)")
         return 2
 
-    profile_name = args.profile or cfg["general"].get("default_profile", "normal")
-    try:
-        profile_cfg = resolve_profile(cfg, profile_name)
-    except ValueError as exc:
-        utils.err(str(exc))
-        return 2
-
-    module_names = _resolve_modules(args.modules, registry)
-
-    # CLI'dan gelen ham ekstra parametreleri ilgili modülün profiline enjekte et
-    for item in args.extra:
-        if "=" not in item:
-            utils.err(f"--extra formatı 'MOD=ARGS' olmalı: {item}")
-            return 2
-        mod, raw = item.split("=", 1)
-        mod = mod.strip()
-        if mod not in registry:
-            utils.err(f"--extra bilinmeyen modül: {mod}")
-            return 2
-        block = profile_cfg.setdefault(mod, {})
-        existing = block.get("extra_args", [])
-        if isinstance(existing, str):
-            existing = shlex.split(existing)
-        block["extra_args"] = list(existing) + shlex.split(raw)
-
     output_root = args.output or cfg["general"].get("output_dir", "output")
     os.makedirs(output_root, exist_ok=True)
 
-    utils.banner("recon-tool başlıyor")
-    utils.info(f"Profil    : {profile_name}")
+    overrides = None  # interaktif / kayıtlı-raw modunda {modül: [bayraklar]}
+
+    if args.interactive:
+        # --- İnteraktif sihirbaz ---
+        from . import wizard
+        module_names = _resolve_modules(args.modules, registry)
+        overrides = wizard.run_interactive(module_names)
+        if not overrides:
+            utils.err("Hiçbir interaktif modül seçilmedi.")
+            return 2
+        module_names = list(overrides.keys())
+        profile_name = wizard.ask_name()
+        if wizard.ask_save():
+            wizard.save_profile(profile_name, overrides)
+        profile_cfg = {}
+    else:
+        profile_name = args.profile or cfg["general"].get("default_profile", "normal")
+        try:
+            profile_cfg = resolve_profile(cfg, profile_name)
+        except ValueError as exc:
+            utils.err(str(exc))
+            return 2
+
+        if profile_cfg.get("_mode") == "raw":
+            # Sihirbazla kaydedilmiş profil: overrides yolundan aynen çalışır
+            saved_mods = [m for m in registry if m in profile_cfg]
+            if args.modules.strip().lower() == "all":
+                module_names = saved_mods
+            else:
+                module_names = _resolve_modules(args.modules, registry)
+            overrides = {m: (profile_cfg.get(m) or {}).get("args", [])
+                         for m in module_names if m in profile_cfg}
+        else:
+            module_names = _resolve_modules(args.modules, registry)
+
+        # CLI ham ekstra parametreleri (sadece normal profil modunda)
+        for item in args.extra:
+            if "=" not in item:
+                utils.err(f"--extra formatı 'MOD=ARGS' olmalı: {item}")
+                return 2
+            mod, raw = item.split("=", 1)
+            mod = mod.strip()
+            if mod not in registry:
+                utils.err(f"--extra bilinmeyen modül: {mod}")
+                return 2
+            block = profile_cfg.setdefault(mod, {})
+            existing = block.get("extra_args", [])
+            if isinstance(existing, str):
+                existing = shlex.split(existing)
+            block["extra_args"] = list(existing) + shlex.split(raw)
+
+    utils.banner("skopos başlıyor")
+    utils.info(f"Profil    : {profile_name}" + (" (interaktif)" if args.interactive else ""))
     utils.info(f"Modüller  : {', '.join(module_names)}")
     utils.info(f"Hedefler  : {', '.join(targets)}")
 
     if args.dry_run:
-        _dry_run(targets, module_names, profile_cfg, cfg)
+        if overrides is not None:
+            for tgt in targets:
+                utils.banner(f"[DRY-RUN] {tgt}")
+                for mod in module_names:
+                    flags = " ".join(overrides.get(mod) or []) or "(varsayılan)"
+                    print(f"  {utils.C.CYAN}{mod}{utils.C.RESET}: {flags}")
+        else:
+            _dry_run(targets, module_names, profile_cfg, cfg)
         return 0
 
     for target in targets:
         try:
             run_scan(target, module_names, profile_cfg, cfg, output_root,
                      auto_fetch=args.auto_fetch, fetch_confirm=not args.yes,
-                     profile_name=profile_name)
+                     profile_name=profile_name, overrides=overrides)
         except KeyboardInterrupt:
             utils.warn("Tarama kullanıcı tarafından durduruldu.")
             return 130

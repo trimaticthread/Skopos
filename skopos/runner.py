@@ -37,10 +37,20 @@ def _ordered(selected):
 
 
 def run_scan(target, module_names, profile_cfg, cfg, output_root,
-             auto_fetch=False, fetch_confirm=True, profile_name=None):
-    """Tek bir hedef için seçili modülleri çalıştırır."""
+             auto_fetch=False, fetch_confirm=True, profile_name=None,
+             overrides=None):
+    """
+    Tek bir hedef için seçili modülleri çalıştırır.
+    overrides : {modül: [ham bayraklar]} verilirse o modül için build_commands
+                yerine interactive_command(seçilenler) kullanılır (interaktif mod).
+    profile_name : verilirse çıktı output/<isim>/<hedef>/<zaman>/ altına yazılır.
+    """
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = os.path.join(output_root, _sanitize(target), ts)
+    if profile_name:
+        run_dir = os.path.join(output_root, _sanitize(profile_name),
+                               _sanitize(target), ts)
+    else:
+        run_dir = os.path.join(output_root, _sanitize(target), ts)
     os.makedirs(run_dir, exist_ok=True)
 
     ctx = {"run_dir": run_dir, "target": target,
@@ -68,7 +78,10 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
             continue
 
         try:
-            commands = module.build_commands()
+            if overrides is not None and mod_name in overrides:
+                commands = module.interactive_command(overrides[mod_name] or [])
+            else:
+                commands = module.build_commands()
         except Exception as exc:  # modül kaynaklı hata tüm taramayı düşürmesin
             utils.err(f"{mod_name} komut üretiminde hata: {exc}")
             summary["modules"][mod_name] = {"status": "error", "error": str(exc)}

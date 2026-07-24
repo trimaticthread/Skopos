@@ -20,6 +20,22 @@ from collections import namedtuple
 Command = namedtuple("Command", ["label", "argv", "redact"])
 Command.__new__.__defaults__ = (None,)
 
+
+def param(flag, name, desc, category, tags=None, value=None):
+    """
+    İnteraktif sihirbaz için bir parametre tanımı üretir.
+      flag     : komuta eklenecek bayrak (ör. "-sS", "-p", "--script=vuln")
+      name     : kısa Türkçe ad
+      desc     : ne işe yaradığı / ne zaman kullanıldığı (sade dil)
+      category : menüde gruplama başlığı (ör. "Tarama Tipi")
+      tags     : bağlam etiketleri (ör. ["root", "sessiz", "CTF"])
+      value    : None ise boolean bayrak. Değer isteyen bayraklar için dict:
+                 {"prompt": "Hangi portlar? (ör. 22,80)", "required": True}
+                 Değer seçilince argv'ye [flag, value] olarak eklenir.
+    """
+    return {"flag": flag, "name": name, "desc": desc, "category": category,
+            "tags": tags or [], "value": value}
+
 # Kayıtlı tüm modüller: {name: sınıf}
 REGISTRY = {}
 
@@ -37,6 +53,10 @@ class BaseModule(ABC):
     name = "base"            # benzersiz modül adı (CLI'da --modules ile kullanılır)
     description = ""         # kısa açıklama (--list-modules çıktısında görünür)
     requires = []            # gereken harici binary'ler, ör. ["nmap"]
+
+    # İnteraktif sihirbaz kataloğu: param() listesi. Boşsa modül interaktif
+    # modda "katalog yok, varsayılan profil kullanılır" olarak ele alınır.
+    PARAMETERS = []
 
     def __init__(self, target, profile_cfg, cfg, ctx):
         """
@@ -79,8 +99,20 @@ class BaseModule(ABC):
 
     @abstractmethod
     def build_commands(self):
-        """Çalıştırılacak Command listesini döndürür."""
+        """Çalıştırılacak Command listesini döndürür (profil modu)."""
         raise NotImplementedError
+
+    def interactive_command(self, selected_args):
+        """
+        İnteraktif modda: kullanıcının menüden seçtiği ham bayrakları
+        (selected_args) modülün temel komutuna (binary + hedef + zorunlu
+        çıktı) yerleştirip Command listesi döndürür.
+        Varsayılan: [binary] + seçilenler + [hedef]. Modüller hedef
+        yerleşimi farklıysa (ffuf, subfinder...) bunu override eder.
+        """
+        binary = self.requires[0] if self.requires else self.name
+        argv = [binary] + list(selected_args) + [self.target]
+        return [Command(label="scan", argv=argv)]
 
     def post_process(self, results):
         """
