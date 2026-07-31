@@ -7,7 +7,7 @@ import os
 import pkgutil
 import re
 
-from . import utils, report
+from . import utils, report, findings
 from .module_base import REGISTRY
 
 # Modüllerin çalıştırılacağı kanonik sıra (bağımlılık zinciri).
@@ -109,9 +109,13 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
         }
 
     # ctx'te biriken keşif verilerini özete ekle
-    for key in ("open_ports", "web_targets", "subdomains", "wordlists"):
+    for key in ("open_ports", "web_targets", "subdomains", "wordlists",
+                "web_assets", "scripts", "host_info", "os"):
         if ctx.get(key):
             summary[key] = ctx[key]
+
+    # Bulgulardan önerilen sonraki adımları üret
+    summary["suggestions"] = findings.build_suggestions(summary)
 
     summary_path = os.path.join(run_dir, "summary.json")
     with open(summary_path, "w", encoding="utf-8") as fh:
@@ -136,13 +140,16 @@ def _print_summary(summary, summary_path, report_path):
     if ops:
         utils.good(f"Açık portlar ({len(ops)}):")
         for op in ops:
-            extra = f" — {op['product']}" if op.get("product") else ""
-            print(f"      {op['port']}/{op['proto']}  {op['service']}{extra}")
+            ver = f" — {op['product']} {op.get('version','')}".rstrip()
+            print(f"      {op['port']}/{op['proto']}  {op['service']}{ver if op.get('product') else ''}")
     else:
         utils.info("Açık port bulunamadı.")
 
-    if summary.get("web_targets"):
-        utils.good("Web hedefleri: " + ", ".join(summary["web_targets"]))
+    for wa in summary.get("web_assets", []):
+        tech = f"  [{', '.join(wa['tech'])}]" if wa.get("tech") else ""
+        utils.good(f"Web varlığı: {wa['url']}{tech}")
+    if summary.get("os"):
+        utils.info("OS ipucu: " + ", ".join(summary["os"]))
     if summary.get("subdomains"):
         utils.good(f"Subdomain: {len(summary['subdomains'])} adet")
 
@@ -154,6 +161,16 @@ def _print_summary(summary, summary_path, report_path):
         parts.append(f"{mark} {name}")
     if parts:
         utils.info("Modüller: " + "   ".join(parts))
+
+    # Önerilen sonraki adımlar
+    sugg = summary.get("suggestions", [])
+    if sugg:
+        print()
+        utils.good("Önerilen sonraki adımlar:")
+        for s in sugg:
+            print(f"      • {s['text']}")
+            if s.get("cmd"):
+                print(f"        {utils.C.DIM}$ {s['cmd']}{utils.C.RESET}")
 
     print()
     utils.good(f"JSON özet : {summary_path}")
