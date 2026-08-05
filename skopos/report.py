@@ -21,6 +21,9 @@ h1 .logo { color:#58a6ff; }
         padding:3px 12px; font-size:13px; color:#8b949e; }
 .pill b { color:#c9d1d9; }
 h2 { font-size:16px; margin:32px 0 12px; color:#e6edf3; }
+h3 { font-size:13px; margin:16px 0 8px; color:#8b949e; text-transform:uppercase; letter-spacing:.4px; }
+.note { background:#3a2e15; border:1px solid #9e7b1f; border-radius:8px; padding:12px 14px;
+        color:#e3b341; font-size:14px; }
 .card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:2px 16px; }
 table { width:100%; border-collapse:collapse; }
 th,td { text-align:left; padding:10px 8px; border-bottom:1px solid #21262d; font-size:14px; }
@@ -84,7 +87,26 @@ def write_html(summary, run_dir):
     host_info = summary.get("host_info", {})
     os_hints = summary.get("os", [])
     suggestions = summary.get("suggestions", [])
+    key = summary.get("key_findings", {})
     modules = summary.get("modules", {})
+
+    # ⭐ Öne Çıkan Bulgular (kürasyon)
+    highlight = ""
+    if key.get("ffuf_note"):
+        highlight += f"<div class='note'>⚠️ {_esc(key['ffuf_note'])}</div>"
+    if key.get("ffuf_hits"):
+        hit_rows = "".join(
+            f"<tr><td class='port'>{_esc(h.get('status'))}</td>"
+            f"<td><a href='{_esc(h.get('url'))}' target='_blank' rel='noopener'>{_esc(h.get('url'))}</a></td>"
+            f"<td class='muted'>{_esc(h.get('length'))}</td></tr>" for h in key["ffuf_hits"])
+        highlight += ("<h3>Bulunan dizinler/dosyalar</h3><table>"
+                      "<thead><tr><th>Kod</th><th>URL</th><th>Boyut</th></tr></thead>"
+                      f"<tbody>{hit_rows}</tbody></table>")
+    if key.get("nikto"):
+        nk = "".join(f"<li>{_esc(n)}</li>" for n in key["nikto"])
+        highlight += f"<h3>Nikto (önemli)</h3><ul class='steps'>{nk}</ul>"
+    highlight_section = (f"<h2>⭐ Öne Çıkan Bulgular</h2><div class='card'>{highlight}</div>"
+                         if highlight else "")
 
     # Servisler & Sürümler tablosu
     if open_ports:
@@ -239,6 +261,8 @@ def write_html(summary, run_dir):
     <span class="pill">OS <b>{_esc(', '.join(os_hints)) or '—'}</b></span>
   </div>
 </header>
+
+{highlight_section}
 
 <h2>🔓 Servisler &amp; Sürümler</h2>
 <div class="card">{ports_html}</div>

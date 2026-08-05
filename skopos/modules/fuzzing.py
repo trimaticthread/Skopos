@@ -1,5 +1,7 @@
 """Dizin/dosya fuzzing modülü (ffuf veya gobuster)."""
 
+import os
+
 from ..module_base import BaseModule, Command, param, register
 from .. import utils, resources
 
@@ -68,7 +70,9 @@ class FuzzingModule(BaseModule):
         wordlist = self._wordlist()
         commands = []
         for i, url in enumerate(_web_targets(self.target, self.ctx)):
-            argv = [binary, "-u", f"{url.rstrip('/')}/FUZZ", "-w", wordlist, "-c"]
+            json_out = os.path.join(self.ctx["run_dir"], f"ffuf{i}.json")
+            argv = [binary, "-u", f"{url.rstrip('/')}/FUZZ", "-w", wordlist, "-c",
+                    "-of", "json", "-o", json_out]
             argv += list(selected_args)
             commands.append(Command(label=f"dirscan{i}", argv=argv))
         return commands
@@ -112,8 +116,11 @@ class FuzzingModule(BaseModule):
                     argv += ["-x", ",".join(exts)]
             else:  # ffuf (varsayılan)
                 binary = settings.get("ffuf_binary", "ffuf")
+                json_out = os.path.join(self.ctx["run_dir"], f"ffuf{i}.json")
+                # -ac: otomatik kalibrasyon (302/wildcard gürültüsünü eler)
+                # -of json -o: temiz parse için JSON çıktı
                 argv = [binary, "-u", f"{url.rstrip('/')}/FUZZ", "-w", wordlist,
-                        "-t", threads, "-c"]
+                        "-t", threads, "-c", "-ac", "-of", "json", "-o", json_out]
                 if exts:
                     argv += ["-e", ",".join("." + e.lstrip(".") for e in exts)]
                 if rate and rate > 0:

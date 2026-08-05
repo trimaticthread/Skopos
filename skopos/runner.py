@@ -7,7 +7,7 @@ import os
 import pkgutil
 import re
 
-from . import utils, report, findings
+from . import utils, report, findings, curate
 from .module_base import REGISTRY
 
 # Modüllerin çalıştırılacağı kanonik sıra (bağımlılık zinciri).
@@ -117,6 +117,14 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
     # Bulgulardan önerilen sonraki adımları üret
     summary["suggestions"] = findings.build_suggestions(summary)
 
+    # Kürasyon: ham çıktılardan sadece önemli bulguları seç + ozet.txt yaz
+    txt_path = os.path.join(run_dir, "ozet.txt")
+    try:
+        summary["key_findings"] = curate.curate(summary, run_dir)
+    except Exception as exc:
+        utils.warn(f"Kürasyon başarısız: {exc}")
+        txt_path = None
+
     summary_path = os.path.join(run_dir, "summary.json")
     with open(summary_path, "w", encoding="utf-8") as fh:
         json.dump(summary, fh, indent=2, ensure_ascii=False)
@@ -128,11 +136,11 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
     except Exception as exc:
         utils.warn(f"HTML rapor üretilemedi: {exc}")
 
-    _print_summary(summary, summary_path, report_path)
+    _print_summary(summary, summary_path, report_path, txt_path)
     return summary
 
 
-def _print_summary(summary, summary_path, report_path):
+def _print_summary(summary, summary_path, report_path, txt_path=None):
     """Tarama sonunda terminale okunur bir özet basar."""
     utils.banner("Tarama özeti")
 
@@ -162,6 +170,19 @@ def _print_summary(summary, summary_path, report_path):
     if parts:
         utils.info("Modüller: " + "   ".join(parts))
 
+    # Kürasyon: öne çıkan bulgular
+    kf = summary.get("key_findings", {})
+    if kf.get("ffuf_note"):
+        utils.warn("ffuf: " + kf["ffuf_note"])
+    if kf.get("ffuf_hits"):
+        utils.good(f"Bulunan dizinler ({len(kf['ffuf_hits'])}):")
+        for h in kf["ffuf_hits"][:12]:
+            print(f"      [{h['status']}] {h['url']}")
+    if kf.get("nikto"):
+        utils.good("Nikto (önemli):")
+        for n in kf["nikto"][:8]:
+            print(f"      - {n}")
+
     # Önerilen sonraki adımlar
     sugg = summary.get("suggestions", [])
     if sugg:
@@ -173,6 +194,8 @@ def _print_summary(summary, summary_path, report_path):
                 print(f"        {utils.C.DIM}$ {s['cmd']}{utils.C.RESET}")
 
     print()
+    if txt_path:
+        utils.good(f"TXT özet  : {txt_path}")
     utils.good(f"JSON özet : {summary_path}")
     if report_path:
         utils.good(f"HTML rapor: {report_path}")
