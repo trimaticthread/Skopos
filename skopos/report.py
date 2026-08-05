@@ -90,21 +90,31 @@ def write_html(summary, run_dir):
     key = summary.get("key_findings", {})
     modules = summary.get("modules", {})
 
-    # ⭐ Öne Çıkan Bulgular (kürasyon)
+    # ⭐ Öne Çıkan Bulgular (kürasyon) — bulgu tipine göre
+    def _hits_table(title, hits):
+        rows = "".join(
+            f"<tr><td class='port'>{_esc(h.get('status'))}</td>"
+            f"<td><a href='{_esc(h.get('url'))}' target='_blank' rel='noopener'>{_esc(h.get('url'))}</a></td>"
+            f"<td class='muted'>{_esc(h.get('length'))}</td></tr>" for h in hits)
+        return (f"<h3>{title} ({len(hits)})</h3><table>"
+                "<thead><tr><th>Kod</th><th>URL</th><th>Boyut</th></tr></thead>"
+                f"<tbody>{rows}</tbody></table>")
+
     highlight = ""
     if key.get("ffuf_note"):
         highlight += f"<div class='note'>⚠️ {_esc(key['ffuf_note'])}</div>"
-    if key.get("ffuf_hits"):
-        hit_rows = "".join(
-            f"<tr><td class='port'>{_esc(h.get('status'))}</td>"
-            f"<td><a href='{_esc(h.get('url'))}' target='_blank' rel='noopener'>{_esc(h.get('url'))}</a></td>"
-            f"<td class='muted'>{_esc(h.get('length'))}</td></tr>" for h in key["ffuf_hits"])
-        highlight += ("<h3>Bulunan dizinler/dosyalar</h3><table>"
-                      "<thead><tr><th>Kod</th><th>URL</th><th>Boyut</th></tr></thead>"
-                      f"<tbody>{hit_rows}</tbody></table>")
+    if key.get("ffuf_dirs"):
+        highlight += _hits_table("📁 Dizinler", key["ffuf_dirs"])
+    if key.get("ffuf_files"):
+        highlight += _hits_table("📄 Dosyalar", key["ffuf_files"])
+    if key.get("ffuf_apis"):
+        highlight += _hits_table("🔌 API / İlginç Uçlar", key["ffuf_apis"])
+    if key.get("subdomains"):
+        subs = "".join(f"<li>{_esc(s)}</li>" for s in key["subdomains"])
+        highlight += f"<h3>🌐 Subdomainler ({len(key['subdomains'])})</h3><ul class='links'>{subs}</ul>"
     if key.get("nikto"):
         nk = "".join(f"<li>{_esc(n)}</li>" for n in key["nikto"])
-        highlight += f"<h3>Nikto (önemli)</h3><ul class='steps'>{nk}</ul>"
+        highlight += f"<h3>🛡️ Nikto (önemli)</h3><ul class='steps'>{nk}</ul>"
     highlight_section = (f"<h2>⭐ Öne Çıkan Bulgular</h2><div class='card'>{highlight}</div>"
                          if highlight else "")
 

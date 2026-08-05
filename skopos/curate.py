@@ -60,6 +60,26 @@ def _curate_ffuf(run_dir):
     return interesting[:40], note
 
 
+_FILE_EXT_RE = re.compile(r"\.[A-Za-z0-9]{1,6}$")
+_API_RE = re.compile(r"(/api/|/api$|/v[0-9]+/|/rest/|/graphql|/swagger|"
+                     r"/oauth|/token|\.json$)", re.I)
+
+
+def _classify_ffuf(hits):
+    """ffuf hitlerini tipe göre ayır: dizinler / dosyalar / API uçları."""
+    dirs, files, apis = [], [], []
+    for h in hits:
+        word = h.get("input") or ""
+        url = h.get("url") or ""
+        if _API_RE.search(url) or "api" in word.lower():
+            apis.append(h)
+        elif _FILE_EXT_RE.search(word) or _FILE_EXT_RE.search(url.split("?")[0]):
+            files.append(h)
+        else:
+            dirs.append(h)
+    return dirs, files, apis
+
+
 def _curate_nikto(run_dir):
     """nikto log'larından gürültüyü eleyip önemli bulguları döndürür."""
     lines = []
@@ -82,8 +102,11 @@ def _curate_nikto(run_dir):
 def curate(summary, run_dir):
     """key_findings üretir ve ozet.txt yazar; key_findings döndürür."""
     ffuf_hits, ffuf_note = _curate_ffuf(run_dir)
-    key = {"ffuf_hits": ffuf_hits, "ffuf_note": ffuf_note,
-           "nikto": _curate_nikto(run_dir)}
+    dirs, files, apis = _classify_ffuf(ffuf_hits)
+    key = {"ffuf_note": ffuf_note,
+           "ffuf_dirs": dirs, "ffuf_files": files, "ffuf_apis": apis,
+           "nikto": _curate_nikto(run_dir),
+           "subdomains": summary.get("subdomains", [])}
     _write_txt(summary, key, run_dir)
     return key
 
@@ -112,14 +135,31 @@ def _write_txt(summary, key, run_dir):
             title = f'  "{wa["title"]}"' if wa.get("title") else ""
             add(f"  {wa['url']}   [{tech}]{title}")
 
-    add("\n── DİZİN KEŞFİ (ffuf) ──")
-    if key["ffuf_note"]:
-        add(f"  ! {key['ffuf_note']}")
-    if key["ffuf_hits"]:
-        for h in key["ffuf_hits"]:
+    def _hits(hits):
+        for h in hits:
             add(f"  [{h['status']}] {h['url']}  (size {h['length']})")
-    elif not key["ffuf_note"]:
+
+    if key["ffuf_note"]:
+        add("\n── DİZİN KEŞFİ (ffuf) ──")
+        add(f"  ! {key['ffuf_note']}")
+    elif not (key["ffuf_dirs"] or key["ffuf_files"] or key["ffuf_apis"]):
+        add("\n── DİZİN KEŞFİ (ffuf) ──")
         add("  (anlamlı sonuç yok)")
+    else:
+        if key["ffuf_dirs"]:
+            add(f"\n── DİZİNLER ({len(key['ffuf_dirs'])}) ──")
+            _hits(key["ffuf_dirs"])
+        if key["ffuf_files"]:
+            add(f"\n── DOSYALAR ({len(key['ffuf_files'])}) ──")
+            _hits(key["ffuf_files"])
+        if key["ffuf_apis"]:
+            add(f"\n── API / İLGİNÇ UÇLAR ({len(key['ffuf_apis'])}) ──")
+            _hits(key["ffuf_apis"])
+
+    if key["subdomains"]:
+        add(f"\n── SUBDOMAINLER ({len(key['subdomains'])}) ──")
+        for s in key["subdomains"]:
+            add(f"  {s}")
 
     if key["nikto"]:
         add("\n── NIKTO (önemli) ──")
