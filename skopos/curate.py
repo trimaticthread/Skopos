@@ -11,6 +11,19 @@ import os
 import re
 from collections import Counter
 
+# Araçlar çıktıya ANSI renk kodu basabilir (ör. whatweb "Script\x1b[0m[module]");
+# eşleştirmeden önce temizlenmeli yoksa substring'ler kırılır.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _read(path):
+    """Log dosyasını okuyup ANSI renk kodlarını temizler."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return _ANSI.sub("", fh.read())
+    except OSError:
+        return ""
+
 # nikto'da gürültü sayılan (elenecek) satırlar
 _NIKTO_NOISE = re.compile(
     r"(Suggested security header missing|X-Frame-Options header is deprecated|"
@@ -84,12 +97,9 @@ def _classify_ffuf(hits):
 def _detect_spa(run_dir):
     """whatweb çıktısından SPA/JS uygulaması işareti arar (Script[module] vb.)."""
     for lf in glob.glob(os.path.join(run_dir, "*whatweb*.log")):
-        try:
-            with open(lf, encoding="utf-8", errors="replace") as fh:
-                content = fh.read()
-        except OSError:
-            continue
-        if "Script[module]" in content or "RedirectLocation" in content:
+        content = _read(lf)  # ANSI temizlenmiş
+        if re.search(r"Script\[module\]|Next\.?js|React|Angular|Vue|webpack|"
+                     r"Nuxt|Svelte", content, re.I):
             return True
     return False
 
@@ -98,12 +108,7 @@ def _curate_nikto(run_dir):
     """nikto log'larından gürültüyü eleyip önemli bulguları döndürür."""
     lines = []
     for lf in sorted(glob.glob(os.path.join(run_dir, "*nikto*.log"))):
-        try:
-            with open(lf, encoding="utf-8", errors="replace") as fh:
-                content = fh.read()
-        except OSError:
-            continue
-        for ln in content.splitlines():
+        for ln in _read(lf).splitlines():
             ln = ln.strip()
             if not ln.startswith("+") or _NIKTO_NOISE.search(ln):
                 continue
