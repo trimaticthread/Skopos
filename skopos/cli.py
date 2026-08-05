@@ -1,6 +1,8 @@
 """Komut satırı arayüzü (argparse)."""
 
 import argparse
+import glob
+import json
 import os
 import shlex
 import sys
@@ -57,6 +59,8 @@ def _parse_args(argv):
                         help="Mevcut modülleri listele ve çık")
     parser.add_argument("--list-profiles", action="store_true",
                         help="Mevcut profilleri listele ve çık")
+    parser.add_argument("--history", action="store_true",
+                        help="Geçmiş taramaları listele (tarih/profil/hedef/port)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Komutları üret ama çalıştırma (ne yapacağını göster)")
     return parser.parse_args(argv)
@@ -71,6 +75,39 @@ def _resolve_targets(args):
             targets += [ln.strip() for ln in fh if ln.strip()
                         and not ln.startswith("#")]
     return targets
+
+
+def _history(output_root):
+    """Geçmiş taramaları (output/**/summary.json) listeler."""
+    files = glob.glob(os.path.join(output_root, "**", "summary.json"), recursive=True)
+    runs = []
+    for f in files:
+        try:
+            with open(f, encoding="utf-8") as fh:
+                s = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        runs.append((s.get("started", ""), s, os.path.dirname(f)))
+    if not runs:
+        utils.info(f"Henüz tarama yok ({output_root}).")
+        return 0
+
+    runs.sort(reverse=True)  # en yeni üstte
+    utils.banner(f"Tarama geçmişi ({len(runs)})")
+    for i, (started, s, run_dir) in enumerate(runs, 1):
+        ports = len(s.get("open_ports", []))
+        web = len(s.get("web_assets", []))
+        profile = s.get("profile") or "-"
+        target = s.get("target", "?")
+        print(f"  {utils.C.CYAN}{i:>2}{utils.C.RESET}. {started}  "
+              f"{utils.C.BOLD}{profile:<12}{utils.C.RESET} {target:<30} "
+              f"{utils.C.GREEN}{ports}p/{web}w{utils.C.RESET}")
+        report = os.path.abspath(os.path.join(run_dir, "report.html"))
+        print(f"      {utils.C.DIM}{report}{utils.C.RESET}")
+    print()
+    utils.info("Sonuncuyu aç: xdg-open \"$(find "
+               f"{output_root} -name report.html | sort | tail -1)\"")
+    return 0
 
 
 def _resolve_modules(names_arg, registry):
@@ -113,6 +150,10 @@ def main(argv=None):
         for name in cfg.get("profiles", {}):
             print(f"  {name}")
         return 0
+
+    if args.history:
+        output_root = args.output or cfg["general"].get("output_dir", "output")
+        return _history(output_root)
 
     targets = _resolve_targets(args)
     if not targets:
