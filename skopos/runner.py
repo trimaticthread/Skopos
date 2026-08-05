@@ -180,6 +180,8 @@ def _print_summary(summary, summary_path, report_path, txt_path=None):
             print(f"      [{h['status']}] {h['url']}")
     if kf.get("nikto"):
         utils.good("Nikto (önemli):")
+        if kf.get("nikto_caveat"):
+            utils.warn("  (SPA — bu bulgular YANLIŞ POZİTİF olabilir, doğrula)")
         for n in kf["nikto"][:8]:
             print(f"      - {n}")
 

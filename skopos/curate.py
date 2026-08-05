@@ -16,7 +16,8 @@ _NIKTO_NOISE = re.compile(
     r"(Suggested security header missing|X-Frame-Options header is deprecated|"
     r"X-Content-Type-Options header is not set|No CGI Directories|"
     r"Failed to check for updates|Start Time|End Time|Target IP|Target Hostname|"
-    r"Target Port|Nikto v|requests:.*items reported)", re.I)
+    r"Target Port|Nikto v|requests:.*items reported|Platform:|No banner retrieved|"
+    r"host\(s\) tested)", re.I)
 # nikto'da önemli sayılan (öne alınacak) izler
 _NIKTO_IMPORTANT = re.compile(
     r"(/admin|/backup|/\.git|/config|/login|osvdb|CVE-|phpmyadmin|"
@@ -80,6 +81,19 @@ def _classify_ffuf(hits):
     return dirs, files, apis
 
 
+def _detect_spa(run_dir):
+    """whatweb çıktısından SPA/JS uygulaması işareti arar (Script[module] vb.)."""
+    for lf in glob.glob(os.path.join(run_dir, "*whatweb*.log")):
+        try:
+            with open(lf, encoding="utf-8", errors="replace") as fh:
+                content = fh.read()
+        except OSError:
+            continue
+        if "Script[module]" in content or "RedirectLocation" in content:
+            return True
+    return False
+
+
 def _curate_nikto(run_dir):
     """nikto log'larından gürültüyü eleyip önemli bulguları döndürür."""
     lines = []
@@ -103,9 +117,13 @@ def curate(summary, run_dir):
     """key_findings üretir ve ozet.txt yazar; key_findings döndürür."""
     ffuf_hits, ffuf_note = _curate_ffuf(run_dir)
     dirs, files, apis = _classify_ffuf(ffuf_hits)
+    nikto = _curate_nikto(run_dir)
+    spa = _detect_spa(run_dir)
     key = {"ffuf_note": ffuf_note,
            "ffuf_dirs": dirs, "ffuf_files": files, "ffuf_apis": apis,
-           "nikto": _curate_nikto(run_dir),
+           "nikto": nikto,
+           # SPA'da nikto her yola 200 aldığı için bulgular yanlış pozitif olabilir
+           "nikto_caveat": bool(spa and nikto),
            "subdomains": summary.get("subdomains", [])}
     _write_txt(summary, key, run_dir)
     return key
@@ -163,6 +181,9 @@ def _write_txt(summary, key, run_dir):
 
     if key["nikto"]:
         add("\n── NIKTO (önemli) ──")
+        if key.get("nikto_caveat"):
+            add("  ! DİKKAT: uygulama SPA (her yola 200 dönüyor) — aşağıdaki")
+            add("    bulgular büyük olasılıkla YANLIŞ POZİTİF. Tarayıcıda doğrula.")
         for n in key["nikto"]:
             add(f"  - {n}")
 

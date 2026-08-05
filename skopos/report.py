@@ -113,6 +113,10 @@ def write_html(summary, run_dir):
         subs = "".join(f"<li>{_esc(s)}</li>" for s in key["subdomains"])
         highlight += f"<h3>🌐 Subdomainler ({len(key['subdomains'])})</h3><ul class='links'>{subs}</ul>"
     if key.get("nikto"):
+        if key.get("nikto_caveat"):
+            highlight += ("<div class='note'>⚠️ Uygulama SPA — her yola 200 dönüyor. "
+                          "Nikto bulguları büyük olasılıkla YANLIŞ POZİTİF; "
+                          "tarayıcıda doğrula.</div>")
         nk = "".join(f"<li>{_esc(n)}</li>" for n in key["nikto"])
         highlight += f"<h3>🛡️ Nikto (önemli)</h3><ul class='steps'>{nk}</ul>"
     highlight_section = (f"<h2>⭐ Öne Çıkan Bulgular</h2><div class='card'>{highlight}</div>"

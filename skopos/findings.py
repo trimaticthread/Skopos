@@ -10,6 +10,9 @@ def build_suggestions(summary):
     target = summary.get("target", "")
     ports = summary.get("open_ports", [])
     web = summary.get("web_assets", [])
+    # URL hedefte (nmap çalışmadıysa) hedefi web varlığı say ki öneri boş kalmasın
+    if not web and target.startswith("http"):
+        web = [{"host": target, "url": target, "tech": [], "server": ""}]
     services = {op.get("service", "") for op in ports}
     portnums = {op.get("port") for op in ports}
     sugg = []
