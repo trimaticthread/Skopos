@@ -1,16 +1,10 @@
-# Tarama çıktıları ve indirilen kaynaklar repoya girmez
 output/
 wordlists/
 *.part
-
-# Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 *.egg-info/
-
-# Kullanıcıya özel config (parola/hedef içerebilir)
 config/local.yaml
-# Sihirbazın kaydettiği interaktif profiller (kullanıcıya özel)
 config/saved.yaml
