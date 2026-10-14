@@ -10,7 +10,7 @@ Yeni bir tool eklemek için:
 Başka hiçbir yeri değiştirmene gerek yok; runner modülü otomatik keşfeder.
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections import namedtuple
 
 # Bir modülün çalıştıracağı tek bir komut.
@@ -58,6 +58,12 @@ class BaseModule(ABC):
     # modda "katalog yok, varsayılan profil kullanılır" olarak ele alınır.
     PARAMETERS = []
 
+    # Pür-Python modüller (OSINT gibi) harici bir komut çalıştırmak yerine
+    # kendi işini Python'da yapar. native=True ise runner, build_commands
+    # yerine native_run() çağırır. Böylece HTTP probe, crt.sh sorgusu gibi
+    # modüller ek binary gerektirmeden mimariye oturur.
+    native = False
+
     def __init__(self, target, profile_cfg, cfg, ctx):
         """
         target      : hedef (IP / domain / URL)
@@ -97,10 +103,36 @@ class BaseModule(ABC):
             return shlex.split(val)
         return list(val)
 
-    @abstractmethod
     def build_commands(self):
-        """Çalıştırılacak Command listesini döndürür (profil modu)."""
-        raise NotImplementedError
+        """
+        Çalıştırılacak Command listesini döndürür (profil modu).
+        Harici araç saran modüller bunu override eder. native=True modüller
+        komut üretmez; bunun yerine native_run()'ı implemente eder.
+        """
+        return []
+
+    def native_run(self):
+        """
+        native=True modüller için giriş noktası: işini Python'da yapar,
+        bulguları ctx'e yazar, isterse write_log ile ham çıktı bırakır.
+        Harici binary çalıştırmaz. Dönüş değeri yok sayılır.
+        """
+        return None
+
+    def write_log(self, label, text):
+        """
+        run_dir'e '<modül>_<label>.log' yazar; rapor/arayüz bunu ham çıktı
+        olarak gösterir (subprocess modüllerindeki .log dosyalarıyla aynı yer).
+        """
+        import os
+        path = os.path.join(self.ctx.get("run_dir", "."),
+                            f"{self.name}_{label}.log")
+        try:
+            with open(path, "w", encoding="utf-8", errors="replace") as fh:
+                fh.write(text if isinstance(text, str) else str(text))
+        except OSError:
+            pass
+        return path
 
     def interactive_command(self, selected_args):
         """

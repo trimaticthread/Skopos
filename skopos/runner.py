@@ -12,8 +12,12 @@ from .core import finding as finding_model
 from .module_base import REGISTRY
 
 # Modüllerin çalıştırılacağı kanonik sıra (bağımlılık zinciri).
-# nmap önce çalışır ki web hedeflerini (ctx) sonraki modüllere aktarabilsin.
-DEFAULT_ORDER = ["nmap", "subdomain", "fuzzing", "web"]
+#   nmap     : açık portlar + web hedeflerini çıkarır (ctx'e yazar)
+#   subdomain/crtsh : alt-alan adlarını toplar (aktif + pasif OSINT)
+#   probe    : nmap web hedefleri + subdomainleri canlı mı diye dener,
+#              canlı olanları web_targets'a ekleyerek zinciri besler
+#   fuzzing/web : zenginleşmiş web hedeflerini tarar
+DEFAULT_ORDER = ["nmap", "subdomain", "crtsh", "probe", "fuzzing", "web"]
 
 
 def discover_modules():
@@ -76,6 +80,18 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
             utils.err(f"Eksik araç(lar): {', '.join(missing)} — modül atlanıyor.")
             summary["modules"][mod_name] = {"status": "skipped_missing_tool",
                                             "missing": missing}
+            continue
+
+        # Pür-Python (native) modüller: harici komut üretmez, kendi işini
+        # Python'da yapar (OSINT gibi). build_commands/stream_command yolunu atlar.
+        if getattr(module, "native", False):
+            try:
+                module.native_run()
+                summary["modules"][mod_name] = {"status": "done",
+                                                "commands": ["(native)"]}
+            except Exception as exc:
+                utils.err(f"{mod_name} hata: {exc}")
+                summary["modules"][mod_name] = {"status": "error", "error": str(exc)}
             continue
 
         try:
