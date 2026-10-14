@@ -19,4 +19,8 @@ Homepage = "https://github.com/trimaticthread/Skopos"
 skopos = "skopos.cli:main"
 
 [tool.setuptools]
-packages = ["skopos", "skopos.core", "skopos.modules"]
+packages = ["skopos", "skopos.core", "skopos.modules", "skopos.webui"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"skopos.webui" = ["assets/*"]

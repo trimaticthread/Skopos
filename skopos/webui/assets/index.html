@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skopos — keşif sonuçları</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand"><span class="logo">🛰️ Skopos</span></span>
+    <div class="control">
+      <label class="ctl-label" for="runSelect">Tarama</label>
+      <select id="runSelect" title="Görüntülenecek taramayı seç"></select>
+    </div>
+    <div class="spacer"></div>
+    <div class="live" id="liveBox" title="Canlı yenilemeyi aç/kapat (tarama sürerken sonuçlar kendiliğinden güncellenir)">
+      <span class="dot"></span><span id="liveText">canlı: kapalı</span>
+    </div>
+    <button id="refreshBtn" class="btn-ghost" title="Şimdi yenile">↻ Yenile</button>
+  </header>
+
+  <main class="wrap">
+    <div id="summary" class="summary"></div>
+    <div id="sevBadges" class="sev-badges"></div>
+
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Ara: port, url, teknoloji, bulgu…" autocomplete="off">
+      <div class="chips" id="catChips"></div>
+      <button class="btn-ghost" id="showAll" title="Tüm filtreleri temizle, her şeyi göster">Hepsini göster</button>
+      <span class="result-count" id="resultCount"></span>
+    </div>
+
+    <div id="content"></div>
+
+    <div id="suggestions"></div>
+
+    <section class="section" id="logsSection">
+      <h2>📄 Ham Çıktı</h2>
+      <p class="explain">Araçların orijinal çıktıları — bir şeyi doğrulamak istediğinde.</p>
+      <div id="logsList"></div>
+    </section>
+
+    <footer>Skopos — yalnızca yetkili güvenlik testleri içindir.</footer>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
