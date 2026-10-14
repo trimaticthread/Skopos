@@ -19,4 +19,4 @@ Homepage = "https://github.com/trimaticthread/Skopos"
 skopos = "skopos.cli:main"
 
 [tool.setuptools]
-packages = ["skopos", "skopos.modules"]
+packages = ["skopos", "skopos.core", "skopos.modules"]

@@ -8,6 +8,7 @@ import pkgutil
 import re
 
 from . import utils, report, findings, curate
+from .core import finding as finding_model
 from .module_base import REGISTRY
 
 # Modüllerin çalıştırılacağı kanonik sıra (bağımlılık zinciri).
@@ -129,6 +130,14 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
     except Exception as exc:
         utils.warn(f"Kürasyon başarısız: {exc}")
         txt_path = None
+
+    # Birleşik bulgu modeli: ham keşif verisini severity'li, filtrelenebilir
+    # tek tip Finding listesine indirger (canlı arayüz + rapor bunu kullanır).
+    try:
+        summary["findings"] = finding_model.build_findings(summary)
+        summary["severity_counts"] = finding_model.severity_counts(summary["findings"])
+    except Exception as exc:
+        utils.warn(f"Finding üretimi başarısız: {exc}")
 
     summary_path = os.path.join(run_dir, "summary.json")
     with open(summary_path, "w", encoding="utf-8") as fh:
