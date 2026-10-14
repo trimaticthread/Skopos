@@ -91,11 +91,16 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
             summary["modules"][mod_name] = {"status": "no_commands"}
             continue
 
+        # Komut zaman aşımı: modül profili > genel config > sınırsız (0/None).
+        cmd_timeout = (module.pcfg.get("timeout")
+                       or cfg.get("general", {}).get("command_timeout")
+                       or None)
+
         results = []
         for cmd in commands:
             logfile = os.path.join(run_dir, f"{mod_name}_{cmd.label}.log")
             rc, out = utils.stream_command(cmd.argv, logfile=logfile,
-                                           redact=cmd.redact)
+                                           redact=cmd.redact, timeout=cmd_timeout)
             results.append((cmd, rc, out))
 
         try:

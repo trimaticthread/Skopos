@@ -7,6 +7,9 @@
 general:
   output_dir: output          # Sonuçların yazılacağı ana klasör
   default_profile: normal     # Flag verilmezse kullanılacak profil
+  command_timeout: 0          # Her komut için duvar-saati sınırı (saniye).
+                              # 0 = sınırsız. Profil bazında modülde
+                              # 'timeout' ile override edilebilir.
 
 # ------------------------------------------------------------
 #  Agresiflik profilleri
