@@ -43,6 +43,11 @@ profiles:
       max_hosts: 30
     crtsh:                    # pasif subdomain (crt.sh)
       timeout: 25
+    nuclei:                   # şablon bazlı zafiyet taraması
+      severity: [high, critical]   # stealth: sadece yüksek önem
+      rate_limit: 50
+      concurrency: 10
+      timeout: 8
     bloodhound:
       collection: DCOnly      # sadece DC'ye sor -> en az gürültü
 
@@ -71,6 +76,11 @@ profiles:
       max_hosts: 60
     crtsh:
       timeout: 25
+    nuclei:
+      severity: [medium, high, critical]
+      rate_limit: 150
+      concurrency: 25
+      timeout: 8
     bloodhound:
       collection: Default     # standart toplama (grup/oturum/ACL vb.)
 
@@ -99,6 +109,11 @@ profiles:
       max_hosts: 150
     crtsh:
       timeout: 30
+    nuclei:
+      severity: [info, low, medium, high, critical]   # aggressive: hepsi
+      rate_limit: 0           # limitsiz
+      concurrency: 50
+      timeout: 10
     bloodhound:
       collection: All         # tüm toplama yöntemleri (en kapsamlı/gürültülü)
 
@@ -146,6 +161,10 @@ modules:
   web:
     whatweb_binary: whatweb
     nikto_binary: nikto
+  dns:
+    binary: dig
+  nuclei:
+    binary: nuclei
   bloodhound:
     binary: bloodhound-python
     domain: ""          # boşsa hedeften türetilir (hedef domain ise)

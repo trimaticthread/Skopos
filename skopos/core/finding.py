@@ -181,6 +181,23 @@ def build_findings(summary: dict) -> list:
             data={"raw": n},
         ))
 
+    # --- nuclei bulguları (gerçek severity doğrudan taşınır) ---
+    for n in summary.get("nuclei", []) or []:
+        sev = (n.get("severity") or "info").lower()
+        if sev not in _ORDER:
+            sev = Severity.INFO.value
+        add(Finding(
+            title=n.get("name", "nuclei bulgusu"),
+            severity=sev,
+            category="vuln",
+            source="nuclei",
+            target=target,
+            evidence=n.get("matched", ""),
+            tags=["nuclei"] + list(n.get("tags", []) or [])[:5],
+            refs=list(n.get("refs", []) or []),
+            data={"template": n.get("template", ""), "matched": n.get("matched", "")},
+        ))
+
     # --- NSE script bulguları ---
     for s in summary.get("scripts", []) or []:
         add(Finding(
