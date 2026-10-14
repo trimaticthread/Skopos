@@ -200,6 +200,13 @@ def build_findings(summary: dict) -> list:
                     category="subdomain", source="subdomain", target=target,
                     evidence="", tags=["subdomain"], data={"host": sub}))
 
+    # --- DNS kayıtları ---
+    for rtype, values in (summary.get("dns") or {}).items():
+        for val in values:
+            add(Finding(title=f"{rtype}: {val}", severity=Severity.INFO.value,
+                        category="dns", source="dns", target=target,
+                        tags=["dns", rtype.lower()], data={"type": rtype, "value": val}))
+
     # --- OS ipuçları ---
     for os_hint in summary.get("os", []) or []:
         add(Finding(title=f"OS ipucu: {os_hint}", severity=Severity.INFO.value,

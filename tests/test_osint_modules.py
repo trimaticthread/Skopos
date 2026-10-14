@@ -61,11 +61,40 @@ class CrtShTest(unittest.TestCase):
         self.assertTrue(CrtShModule.native)
 
 
+class DnsTest(unittest.TestCase):
+    def _mod(self, target):
+        from skopos.modules.dns import DnsModule
+        return DnsModule(target, {}, {}, {"target": target, "run_dir": "."})
+
+    def test_ip_target_builds_no_commands(self):
+        self.assertEqual(self._mod("10.0.0.1").build_commands(), [])
+
+    def test_domain_builds_one_cmd_per_record_type(self):
+        from skopos.modules.dns import _TYPES
+        cmds = self._mod("example.com").build_commands()
+        self.assertEqual(len(cmds), len(_TYPES))
+        self.assertEqual(cmds[0].argv[0], "dig")
+        self.assertIn("example.com", cmds[0].argv)
+
+    def test_post_process_parses_records(self):
+        from skopos.module_base import Command
+        mod = self._mod("example.com")
+        results = [
+            (Command(label="a", argv=[]), 0, "93.184.216.34\n"),
+            (Command(label="mx", argv=[]), 0, "0 .\n"),
+            (Command(label="ns", argv=[]), 0, ";; comment\na.iana-servers.net.\n"),
+        ]
+        mod.post_process(results)
+        dns = mod.ctx["dns"]
+        self.assertEqual(dns["A"], ["93.184.216.34"])
+        self.assertIn("a.iana-servers.net.", dns["NS"])
+
+
 class RegistryTest(unittest.TestCase):
     def test_all_modules_registered(self):
         reg = discover_modules()
         for n in ("nmap", "subdomain", "fuzzing", "web", "bloodhound",
-                  "probe", "crtsh"):
+                  "probe", "crtsh", "dns"):
             self.assertIn(n, reg)
 
 

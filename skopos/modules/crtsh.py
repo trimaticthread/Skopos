@@ -13,11 +13,35 @@ from __future__ import annotations
 
 import json
 import re
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
 from ..module_base import BaseModule, register
 from .. import utils
+
+# crt.sh sık sık 429/502/503 döner (aşırı yüklü servis); kısa retry ile aşarız.
+_RETRYABLE = {429, 502, 503, 504}
+
+
+def _fetch_crtsh(url, timeout, attempts=3):
+    """crt.sh'i retry ile sorgular; (data | None, hata_mesajı | None) döner."""
+    last = "bilinmeyen hata"
+    for i in range(attempts):
+        req = urllib.request.Request(url, headers={"User-Agent": "skopos-crtsh/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8", "replace")), None
+        except urllib.error.HTTPError as exc:
+            last = f"HTTP {exc.code}"
+            if exc.code not in _RETRYABLE:
+                return None, last
+        except (urllib.error.URLError, OSError, ValueError, TimeoutError) as exc:
+            last = str(exc)
+        if i < attempts - 1:
+            time.sleep(2 * (i + 1))  # artan bekleme
+    return None, last
 
 _IP_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
@@ -44,13 +68,10 @@ class CrtShModule(BaseModule):
                                                            "output": "json"})
         timeout = float(self.pcfg.get("timeout", 25) or 25)
         utils.info(f"crtsh: {domain} için sertifika logları sorgulanıyor...")
-        req = urllib.request.Request(url, headers={"User-Agent": "skopos-crtsh/1.0"})
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read().decode("utf-8", "replace")
-            data = json.loads(raw)
-        except (urllib.error.URLError, OSError, ValueError, TimeoutError) as exc:
-            utils.warn(f"crtsh: sorgu başarısız ({exc}).")
+        data, error = _fetch_crtsh(url, timeout)
+        if data is None:
+            utils.warn(f"crtsh: sorgu başarısız ({error}). crt.sh aşırı yüklü "
+                       f"olabilir — sonra tekrar dene.")
             return
 
         found = set()

@@ -9,6 +9,7 @@ const CATS = [
   { key: "content",   label: "📁 İçerik Keşfi",             explain: "Fuzzing ile bulunan dizinler, dosyalar ve API uçları." },
   { key: "vuln",      label: "🛡️ Zafiyet İzleri",          explain: "Tarayıcıların işaret ettiği olası zayıf noktalar — doğrulanmalı." },
   { key: "subdomain", label: "🔗 Subdomainler",             explain: "Keşfedilen alt alan adları." },
+  { key: "dns",       label: "🧭 DNS Kayıtları",            explain: "Alan adının DNS kayıtları (A, MX, NS, TXT…)." },
   { key: "script",    label: "📜 Script Bulguları",         explain: "nmap NSE scriptlerinin çıktıları." },
   { key: "host",      label: "🖥️ Host Bilgisi",            explain: "İşletim sistemi ipuçları ve host detayları." },
   { key: "osint",     label: "🛰️ OSINT",                   explain: "Pasif kaynaklardan toplanan bilgiler." },

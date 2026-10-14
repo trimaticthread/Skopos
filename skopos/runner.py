@@ -17,7 +17,7 @@ from .module_base import REGISTRY
 #   probe    : nmap web hedefleri + subdomainleri canlı mı diye dener,
 #              canlı olanları web_targets'a ekleyerek zinciri besler
 #   fuzzing/web : zenginleşmiş web hedeflerini tarar
-DEFAULT_ORDER = ["nmap", "subdomain", "crtsh", "probe", "fuzzing", "web"]
+DEFAULT_ORDER = ["dns", "nmap", "subdomain", "crtsh", "probe", "fuzzing", "web"]
 
 
 def discover_modules():
@@ -132,7 +132,7 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
 
     # ctx'te biriken keşif verilerini özete ekle
     for key in ("open_ports", "web_targets", "subdomains", "wordlists",
-                "web_assets", "scripts", "host_info", "os"):
+                "web_assets", "scripts", "host_info", "os", "dns", "probe"):
         if ctx.get(key):
             summary[key] = ctx[key]
 
