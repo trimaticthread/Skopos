@@ -19,31 +19,36 @@
 ## What is Skopos?
 
 Skopos (Greek *σκοπός* — "watcher, lookout") wraps the tools you already run by
-hand — **nmap, ffuf/gobuster, subfinder, whatweb, nikto, BloodHound** — behind a
-single command. You choose *how aggressive* the scan should be and *which*
-modules to run; Skopos builds the correct flags for each tool, **chains results
-between them** (nmap's open web ports automatically become fuzzing/nikto
-targets), and writes clean, per-target reports.
+hand — **nmap, ffuf/gobuster, subfinder, whatweb, nikto, nuclei, BloodHound**,
+plus built-in OSINT (crt.sh, DNS, live HTTP probing) — behind a single command.
+You choose *how aggressive* the scan should be and *which* modules to run;
+Skopos builds the correct flags for each tool, **chains results between them**
+(nmap's open web ports and discovered subdomains automatically become
+probe / fuzzing / nuclei targets), and then **opens a live web viewer** where
+every finding is one filterable, severity-rated list with plain-language headings.
 
 The whole thing is built around one idea: **adding a new tool should be writing
 a single file.** Every module shares the same profiles, output pipeline,
-credential redaction and resource auto-download for free.
+credential redaction, unified findings model and resource auto-download for free.
 
 ```bash
-# One line: full recon on a target, aggressive profile, all modules
-python -m skopos -t 10.10.10.5 -p aggressive
+# One line: full recon on a target, aggressive profile, then open the viewer
+python -m skopos -t 10.10.10.5 -p aggressive --serve --serve-host 0.0.0.0
 ```
 
 ## ✨ Features
 
-- 🧩 **Plugin architecture** — a new tool is one file + `@register`, auto-discovered at runtime. No wiring, no registries to edit.
-- 🎚️ **Aggressiveness profiles** — `stealth` / `normal` / `aggressive` tune timing, thread count, wordlist size, port range and NSE scripts across *every* module from one place.
-- 🔗 **Result chaining** — nmap parses open ports, derives web targets, and hands them to the fuzzing and web modules via a shared context.
+- 🖥️ **Live web viewer** — `skopos serve` (or `--serve` right after a scan) opens a dependency-free localhost page listing every run; per run, findings are grouped under plain-language headings with clickable severity badges, category chips and free-text search — filter down or show everything. Live mode refreshes while a scan is still writing.
+- 🎯 **Unified findings model** — every module's raw output is reduced to one severity-rated `Finding` schema (`info → critical`), so the viewer's colours and filters reflect real risk and new modules light up the UI for free.
+- 🛰️ **Built-in OSINT** — passive subdomains from crt.sh, DNS records (`dig`), and a threaded live-HTTP probe (pure Python, no extra binary) that validates discovered hosts and **feeds them back into the scan chain** so subdomains are no longer a dead end.
+- 🧩 **Plugin architecture** — a new tool is one file + `@register`, auto-discovered at runtime. Shell-out *or* pure-Python (`native`) modules. No wiring, no registries to edit.
+- 🎚️ **Aggressiveness profiles** — `stealth` / `normal` / `aggressive` tune timing, threads, wordlist size, port range, NSE scripts, nuclei severity floor and probe depth across *every* module from one place.
+- 🔗 **Result chaining** — nmap derives web targets; subdomain/crt.sh gather hosts; probe confirms which are live; fuzzing / web / nuclei scan the enriched set — all via a shared context.
 - 🎛️ **Escape hatch** — pass *any* raw tool flag with `-x 'nmap=-sU --min-rate 5000'`. Nothing is locked behind named knobs; the full parameter surface stays reachable.
 - 📦 **Auto-fetch resources** — missing wordlists are downloaded on demand from SecLists (HTTPS only), cached locally.
 - 🩺 **Environment doctor** — `--setup` reports every missing tool with the exact install command and pre-downloads wordlists.
-- 🔒 **Safe by design** — `shell=False` everywhere (no command injection), passwords redacted from logs and dry-runs, downloads restricted to `https`.
-- 📄 **Structured output** — per-module logs plus a machine-readable `summary.json` for every run.
+- 🔒 **Safe by design** — `shell=False` everywhere (no command injection), real wall-clock command timeouts, passwords redacted from logs and dry-runs, downloads restricted to `https`, the viewer binds `127.0.0.1` by default and is never exposed to the VPN.
+- 📄 **Structured output** — per-module logs plus a machine-readable `summary.json` (open ports, web assets, findings, severity counts) for every run.
 
 ## 🚀 Quick start
 
@@ -75,27 +80,59 @@ Prefer a real `skopos` command instead of `python -m skopos`? Install it with
 pipx install -e .   # now just run:  skopos -t <target> ...
 ```
 
+## 🖥️ Live results viewer
+
+Skopos writes a machine-readable `summary.json` for every run; `skopos serve`
+turns the whole `output/` tree into a single, filterable web page — no
+database, no build step, no dependencies (pure stdlib `http.server`).
+
+```bash
+# Scan, then open the viewer automatically when it finishes
+python3 -m skopos -t 10.10.11.5 -p aggressive --serve --open
+
+# Or browse everything you've already scanned
+python3 -m skopos serve                 # http://127.0.0.1:8777
+python3 -m skopos serve --host 0.0.0.0 --port 8777   # reachable from your LAN/VPN
+```
+
+In the page you get, per run: clickable **severity badges** (critical → info),
+**category chips** (ports, web, content, vulns, subdomains, DNS, …) and a
+**search box** — stack them to filter, or hit *"show everything"*. Suggested
+next steps and the raw tool logs are one click away. Turn on **live mode** and
+the page refreshes itself while a scan is still running.
+
+> By default the viewer binds `127.0.0.1` (local only). Pass `--serve-host` /
+> `--host` to expose it — e.g. a Tailscale IP to reach it from your laptop.
+> It is read-only and never triggers scans.
+
 ## 🎚️ Profiles
 
 Every profile carries per-module knobs, defined in
 [`config/default.yaml`](config/default.yaml). Copy it and pass `-c my.yaml` to
 override anything.
 
-| Profile        | nmap                         | fuzzing              | subdomain | web         | bloodhound |
-| -------------- | ---------------------------- | -------------------- | --------- | ----------- | ---------- |
-| **stealth**    | `-T2`, top-100 ports         | 10 threads, small WL | passive   | nikto off   | `DCOnly`   |
-| **normal**     | `-T3`, top-1000, `-sC`       | 40 threads, med WL   | passive   | nikto on    | `Default`  |
-| **aggressive** | `-T4 -p- -A`, `vuln` scripts | 100 threads, big WL  | active    | nikto on    | `All`      |
+| Profile        | nmap                         | fuzzing              | web         | nuclei      | bloodhound |
+| -------------- | ---------------------------- | -------------------- | ----------- | ----------- | ---------- |
+| **stealth**    | `-T2`, top-100 ports         | 10 threads, small WL | nikto off   | high+       | `DCOnly`   |
+| **normal**     | `-T4`, top-1000, `-sC`       | 40 threads, med WL   | nikto on    | medium+     | `Default`  |
+| **aggressive** | `-T4 -p- -A`, `vuln` scripts | 100 threads, big WL  | nikto on    | all sev.    | `All`      |
 
 ## 🧩 Modules
 
 | Module       | Wraps                    | Purpose                                             |
 | ------------ | ------------------------ | --------------------------------------------------- |
-| `nmap`       | nmap                     | Port + service/version scan, port parsing           |
+| `dns`        | dig                      | DNS records (A/AAAA/MX/NS/TXT/CNAME/SOA)             |
+| `nmap`       | nmap                     | Port + service/version scan, deep XML parsing       |
+| `subdomain`  | subfinder                | Subdomain enumeration (active)                      |
+| `crtsh`      | *(pure Python)*          | Passive subdomains from crt.sh certificate logs     |
+| `probe`      | *(pure Python)*          | Threaded live-HTTP probe; feeds live hosts to the chain |
 | `fuzzing`    | ffuf / gobuster          | Web content (directory/file) discovery              |
-| `subdomain`  | subfinder                | Subdomain enumeration                               |
 | `web`        | whatweb + nikto          | Tech fingerprinting + web vuln scan                 |
+| `nuclei`     | nuclei                   | Template-based vulnerability scan (real severities) |
 | `bloodhound` | bloodhound-python        | Active Directory data collection *(authenticated)*  |
+
+Modules marked *pure Python* are `native` — they need no external binary and
+run entirely in-process (see [Adding a new tool](#-adding-a-new-tool-the-whole-point)).
 
 ```bash
 python3 -m skopos --list-modules    # see everything registered, with requirements
@@ -219,21 +256,33 @@ profiles:
 ## 📂 Output layout
 
 ```
-output/<target>/<timestamp>/
+output/[<profile>/]<target>/<timestamp>/
 ├── nmap_portscan.log      # raw output of each command
 ├── nmap.xml               # parsed nmap XML
 ├── fuzzing_dirscan0.log
-└── summary.json           # open ports, derived web targets, per-module status
+├── nuclei.jsonl           # structured nuclei results
+├── probe_probe.log        # live-HTTP probe results
+├── ozet.txt               # curated, human-readable summary
+├── report.html            # self-contained static report
+└── summary.json           # open ports, web assets, findings[], severity_counts, status
 ```
+
+The live viewer (`skopos serve`) reads these `summary.json` files directly, so
+every past run is browsable without re-scanning.
 
 ## 🗺️ Roadmap
 
-- [ ] `pytest` test suite + CI
-- [ ] Normalized JSON parsing for ffuf / nikto (not just nmap)
-- [ ] Consolidated HTML report
-- [ ] Parallel execution across targets
+- [x] Test suite (stdlib `unittest`, no deps) — characterization + unit tests
+- [x] Unified, severity-rated findings model across all modules
+- [x] Live, filterable web viewer (`skopos serve`)
+- [x] Built-in OSINT: crt.sh, DNS, live HTTP probe
+- [x] `nuclei` module (template-based vuln scanning)
+- [x] Real wall-clock command timeouts
+- [ ] CI (run the test suite on push)
+- [ ] Parallel execution across independent modules / targets
 - [ ] Scope guard (refuse out-of-scope targets)
-- [ ] More modules: `nuclei`, `crackmapexec`, `enum4linux`
+- [ ] Shodan / Censys OSINT (API-key, optional)
+- [ ] More modules: `crackmapexec`/`netexec`, `enum4linux`, `katana`
 
 ## ⚖️ Disclaimer & legal use
 
