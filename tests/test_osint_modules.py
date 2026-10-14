@@ -61,6 +61,37 @@ class CrtShTest(unittest.TestCase):
         self.assertTrue(CrtShModule.native)
 
 
+class CrtShScopeTest(unittest.TestCase):
+    """crt.sh sonuçlarının kapsam (etiket sınırı) filtrelemesi."""
+
+    def _extract(self, name_value, domain="example.com"):
+        from skopos.modules.crtsh import _extract_subdomains
+        return _extract_subdomains([{"name_value": name_value, "common_name": ""}], domain)
+
+    def test_accepts_real_subdomains(self):
+        subs = self._extract("dev.example.com\napi.example.com")
+        self.assertIn("dev.example.com", subs)
+        self.assertIn("api.example.com", subs)
+
+    def test_rejects_sibling_suffix_domains(self):
+        # kapsam ihlali: bunlar example.com'un alt-alanı DEĞİL
+        subs = self._extract("evilexample.com\nnotexample.com\nsub.example.com")
+        self.assertNotIn("evilexample.com", subs)
+        self.assertNotIn("notexample.com", subs)
+        self.assertIn("sub.example.com", subs)
+
+    def test_excludes_apex_keeps_nested_wildcard(self):
+        subs = self._extract("example.com\n*.example.com\n*.dev.example.com")
+        self.assertNotIn("example.com", subs)
+        self.assertIn("dev.example.com", subs)
+
+    def test_common_name_included(self):
+        from skopos.modules.crtsh import _extract_subdomains
+        subs = _extract_subdomains(
+            [{"name_value": "", "common_name": "vpn.example.com"}], "example.com")
+        self.assertEqual(subs, ["vpn.example.com"])
+
+
 class DnsTest(unittest.TestCase):
     def _mod(self, target):
         from skopos.modules.dns import DnsModule

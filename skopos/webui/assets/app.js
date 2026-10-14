@@ -22,7 +22,7 @@ const SEVS = [
 const state = {
   runId: null, summary: null, runMtime: null,
   search: "", cats: new Set(), sevs: new Set(),
-  live: false, liveTimer: null,
+  live: false, liveTimer: null, logsKey: null,
 };
 
 // --- küçük DOM yardımcıları ---
@@ -43,7 +43,8 @@ async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new E
 // --- tarama listesi ---
 async function loadRuns(selectFirst) {
   let runs = [];
-  try { runs = await getJSON("/api/runs"); } catch (e) { return; }
+  try { runs = await getJSON("/api/runs"); }
+  catch (e) { renderEmpty("Sunucuya ulaşılamadı; “↻ Yenile”yi dene."); return; }
   const sel = $("runSelect");
   const prev = state.runId;
   sel.textContent = "";
@@ -233,9 +234,15 @@ function renderSuggestions(sugg) {
 
 // --- ham loglar ---
 async function loadLogs(id) {
-  const list = $("logsList"); list.textContent = "";
   let files = [];
   try { files = await getJSON("/api/logfiles?id=" + encodeURIComponent(id)); } catch (e) {}
+  // Aynı tarama + aynı dosya seti ise listeyi yeniden KURMA; böylece canlı modda
+  // (her mtime tikinde loadRun -> loadLogs) kullanıcının açtığı log panelleri
+  // kapanmaz. Yalnızca tarama ya da dosya seti değişince yeniden kurar.
+  const key = id + "|" + files.join(",");
+  if (key === state.logsKey) return;
+  state.logsKey = key;
+  const list = $("logsList"); list.textContent = "";
   if (!files.length) { list.append(h("p", { class: "explain", text: "Log dosyası yok." })); return; }
   for (const fn of files) {
     const pre = h("pre", { text: "yükleniyor…" });
@@ -246,8 +253,9 @@ async function loadLogs(id) {
         loaded = true;
         try {
           const r = await fetch(`/api/log?id=${encodeURIComponent(id)}&file=${encodeURIComponent(fn)}`);
+          if (!r.ok) { pre.textContent = "okunamadı"; loaded = false; return; }
           pre.textContent = await r.text();
-        } catch (e) { pre.textContent = "okunamadı"; }
+        } catch (e) { pre.textContent = "okunamadı"; loaded = false; }
       }
     });
     list.append(det);

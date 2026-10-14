@@ -90,11 +90,15 @@ def stream_command(argv, logfile=None, timeout=None, redact=None):
     timer = None
     if timeout and timeout > 0:
         def _kill_on_timeout():
-            timed_out.set()
-            try:
-                proc.kill()
-            except OSError:
-                pass
+            # Yalnızca süreç HÂLÂ çalışıyorsa zaman aşımı say. Süreç tam deadline
+            # civarında kendi bittiyse (stdout EOF → cancel yarışı) bunu yanlışlıkla
+            # "öldürüldü" diye raporlamayı önler.
+            if proc.poll() is None:
+                timed_out.set()
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
         timer = threading.Timer(timeout, _kill_on_timeout)
         timer.daemon = True
         timer.start()
@@ -105,6 +109,9 @@ def stream_command(argv, logfile=None, timeout=None, redact=None):
             collected.append(line)
             if fh:
                 fh.write(line)
+        # stdout EOF = süreç çıktı; watchdog'u proc.wait()'ten ÖNCE durdur.
+        if timer:
+            timer.cancel()
         proc.wait()
     except KeyboardInterrupt:
         proc.kill()

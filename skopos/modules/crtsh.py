@@ -51,6 +51,28 @@ def _domain_of(target):
     return None if _IP_RE.match(t) else t
 
 
+def _extract_subdomains(data, domain):
+    """
+    crt.sh JSON'undan hedef domainin GERÇEK alt-alan adlarını çıkarır.
+
+    Etiket sınırı şarttır: sertifikalar (CT logları) çok-SAN olabilir ve aynı
+    sorguya takılan alakasız domainleri de taşıyabilir. Sadece son-ek eşleşmesi
+    (endswith(domain)) 'evilexample.com'u da 'example.com' alt-alanı sanardı —
+    bu bir kapsam ihlali. Bu yüzden '.' + domain ile tam etiket sınırı aranır
+    (apex domainin kendisi de alt-alan sayılmaz).
+    """
+    suffix = "." + domain
+    found = set()
+    for entry in data:
+        names = (entry.get("name_value") or "").splitlines()
+        names.append(entry.get("common_name") or "")
+        for n in names:
+            n = n.strip().lower().lstrip("*.")
+            if n and n.endswith(suffix) and "@" not in n:
+                found.add(n)
+    return sorted(found)
+
+
 @register
 class CrtShModule(BaseModule):
     name = "crtsh"
@@ -74,16 +96,7 @@ class CrtShModule(BaseModule):
                        f"olabilir — sonra tekrar dene.")
             return
 
-        found = set()
-        for entry in data:
-            names = (entry.get("name_value") or "").splitlines()
-            common = entry.get("common_name") or ""
-            for n in names + [common]:
-                n = n.strip().lower().lstrip("*.")
-                if n and n.endswith(domain) and n != domain and "@" not in n:
-                    found.add(n)
-
-        subs = sorted(found)
+        subs = _extract_subdomains(data, domain)
         if not subs:
             utils.info("crtsh: yeni subdomain bulunamadı.")
             self.write_log("crtsh", f"# crt.sh — {domain}\n(sonuç yok)\n")
