@@ -8,11 +8,17 @@ import pkgutil
 import re
 
 from . import utils, report, findings, curate
+from .core import finding as finding_model
 from .module_base import REGISTRY
 
 # Modüllerin çalıştırılacağı kanonik sıra (bağımlılık zinciri).
-# nmap önce çalışır ki web hedeflerini (ctx) sonraki modüllere aktarabilsin.
-DEFAULT_ORDER = ["nmap", "subdomain", "fuzzing", "web"]
+#   nmap     : açık portlar + web hedeflerini çıkarır (ctx'e yazar)
+#   subdomain/crtsh : alt-alan adlarını toplar (aktif + pasif OSINT)
+#   probe    : nmap web hedefleri + subdomainleri canlı mı diye dener,
+#              canlı olanları web_targets'a ekleyerek zinciri besler
+#   fuzzing/web : zenginleşmiş web hedeflerini tarar
+DEFAULT_ORDER = ["dns", "nmap", "subdomain", "crtsh", "probe",
+                 "fuzzing", "web", "nuclei"]
 
 
 def discover_modules():
@@ -77,6 +83,18 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
                                             "missing": missing}
             continue
 
+        # Pür-Python (native) modüller: harici komut üretmez, kendi işini
+        # Python'da yapar (OSINT gibi). build_commands/stream_command yolunu atlar.
+        if getattr(module, "native", False):
+            try:
+                module.native_run()
+                summary["modules"][mod_name] = {"status": "done",
+                                                "commands": ["(native)"]}
+            except Exception as exc:
+                utils.err(f"{mod_name} hata: {exc}")
+                summary["modules"][mod_name] = {"status": "error", "error": str(exc)}
+            continue
+
         try:
             if overrides is not None and mod_name in overrides:
                 commands = module.interactive_command(overrides[mod_name] or [])
@@ -91,11 +109,16 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
             summary["modules"][mod_name] = {"status": "no_commands"}
             continue
 
+        # Komut zaman aşımı: modül profili > genel config > sınırsız (0/None).
+        cmd_timeout = (module.pcfg.get("timeout")
+                       or cfg.get("general", {}).get("command_timeout")
+                       or None)
+
         results = []
         for cmd in commands:
             logfile = os.path.join(run_dir, f"{mod_name}_{cmd.label}.log")
             rc, out = utils.stream_command(cmd.argv, logfile=logfile,
-                                           redact=cmd.redact)
+                                           redact=cmd.redact, timeout=cmd_timeout)
             results.append((cmd, rc, out))
 
         try:
@@ -110,7 +133,8 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
 
     # ctx'te biriken keşif verilerini özete ekle
     for key in ("open_ports", "web_targets", "subdomains", "wordlists",
-                "web_assets", "scripts", "host_info", "os"):
+                "web_assets", "scripts", "host_info", "os", "dns", "probe",
+                "nuclei"):
         if ctx.get(key):
             summary[key] = ctx[key]
 
@@ -124,6 +148,14 @@ def run_scan(target, module_names, profile_cfg, cfg, output_root,
     except Exception as exc:
         utils.warn(f"Kürasyon başarısız: {exc}")
         txt_path = None
+
+    # Birleşik bulgu modeli: ham keşif verisini severity'li, filtrelenebilir
+    # tek tip Finding listesine indirger (canlı arayüz + rapor bunu kullanır).
+    try:
+        summary["findings"] = finding_model.build_findings(summary)
+        summary["severity_counts"] = finding_model.severity_counts(summary["findings"])
+    except Exception as exc:
+        utils.warn(f"Finding üretimi başarısız: {exc}")
 
     summary_path = os.path.join(run_dir, "summary.json")
     with open(summary_path, "w", encoding="utf-8") as fh:

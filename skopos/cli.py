@@ -63,7 +63,41 @@ def _parse_args(argv):
                         help="Geçmiş taramaları listele (tarih/profil/hedef/port)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Komutları üret ama çalıştırma (ne yapacağını göster)")
+    # --- Canlı sonuç arayüzü ---
+    parser.add_argument("--serve", action="store_true",
+                        help="Taramalar bitince sonuçları canlı web arayüzünde aç")
+    parser.add_argument("--serve-host", default="127.0.0.1",
+                        help="Arayüzün dinleyeceği adres (varsayılan 127.0.0.1; "
+                             "uzaktan erişim için ör. Tailscale IP'si)")
+    parser.add_argument("--serve-port", type=int, default=8777,
+                        help="Arayüz portu (varsayılan 8777)")
+    parser.add_argument("--open", action="store_true",
+                        help="Arayüzü tarayıcıda otomatik aç (yalnızca localhost)")
     return parser.parse_args(argv)
+
+
+def _serve_command(argv):
+    """`skopos serve ...`: mevcut taramaları canlı arayüzde gösterir."""
+    parser = argparse.ArgumentParser(
+        prog="skopos serve",
+        description="Taranmış sonuçları (output/) canlı bir web arayüzünde göster.")
+    parser.add_argument("-o", "--output", default=None,
+                        help="Çıktı klasörü (varsayılan: config'teki output_dir)")
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="Dinlenecek adres (varsayılan 127.0.0.1). Uzaktan "
+                             "erişim için makinenin IP'sini ver (ör. Tailscale IP'si).")
+    parser.add_argument("--port", type=int, default=8777, help="Port (varsayılan 8777)")
+    parser.add_argument("--open", action="store_true",
+                        help="Tarayıcıyı otomatik aç (yalnızca localhost)")
+    args = parser.parse_args(argv)
+    try:
+        cfg = load_config(None)
+        output_root = args.output or cfg["general"].get("output_dir", "output")
+    except Exception:
+        output_root = args.output or "output"
+    from .webui import server
+    return server.serve(output_root, host=args.host, port=args.port,
+                        open_browser=args.open)
 
 
 def _resolve_targets(args):
@@ -123,7 +157,12 @@ def _resolve_modules(names_arg, registry):
 
 
 def main(argv=None):
-    args = _parse_args(argv if argv is not None else sys.argv[1:])
+    argv = list(argv if argv is not None else sys.argv[1:])
+    # `skopos serve ...` — tarama değil, sonuç arayüzünü başlatır
+    if argv and argv[0] == "serve":
+        return _serve_command(argv[1:])
+
+    args = _parse_args(argv)
 
     try:
         cfg = load_config(args.config)
@@ -240,6 +279,11 @@ def main(argv=None):
             return 130
 
     utils.good("Tüm hedefler tamamlandı.")
+
+    if args.serve:
+        from .webui import server
+        server.serve(output_root, host=args.serve_host, port=args.serve_port,
+                     open_browser=args.open)
     return 0
 
 
